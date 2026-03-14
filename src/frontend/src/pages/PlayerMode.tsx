@@ -36,6 +36,36 @@ export function PlayerMode() {
   > | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
   const [showNumberBoard, setShowNumberBoard] = useState(false);
+  const [autoCall, setAutoCall] = useState(false);
+  const [autoSpeed, setAutoSpeed] = useState("5"); // seconds
+  const autoCallRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto call interval
+  useEffect(() => {
+    if (autoCall && gameStatus === "inProgress") {
+      autoCallRef.current = setInterval(() => {
+        drawNumber();
+      }, Number(autoSpeed) * 1000);
+    } else {
+      if (autoCallRef.current) {
+        clearInterval(autoCallRef.current);
+        autoCallRef.current = null;
+      }
+    }
+    return () => {
+      if (autoCallRef.current) {
+        clearInterval(autoCallRef.current);
+        autoCallRef.current = null;
+      }
+    };
+  }, [autoCall, gameStatus, autoSpeed, drawNumber]);
+
+  // Stop auto call when game completes
+  useEffect(() => {
+    if (gameStatus !== "inProgress") {
+      setAutoCall(false);
+    }
+  }, [gameStatus]);
 
   // Voice announcement for new numbers — spoken once, clearly
   const prevCalledLengthRef = useRef(calledNumbers.length);
@@ -256,11 +286,61 @@ export function PlayerMode() {
                   <>
                     <Button
                       onClick={drawNumber}
+                      disabled={autoCall}
                       data-ocid="player.draw.button"
-                      className="festive-gradient text-white border-0 font-bold"
+                      className="festive-gradient text-white border-0 font-bold disabled:opacity-50"
                     >
                       🎲 Draw Number
                     </Button>
+
+                    {/* Auto Call controls */}
+                    <div className="flex items-center gap-2 bg-muted/60 rounded-lg px-3 py-1.5">
+                      <Button
+                        size="sm"
+                        variant={autoCall ? "destructive" : "default"}
+                        onClick={() => setAutoCall((v) => !v)}
+                        data-ocid="player.autocall.toggle"
+                        className="font-bold text-xs h-7 px-3"
+                      >
+                        {autoCall ? "⏹ Stop Auto" : "▶ Auto Call"}
+                      </Button>
+                      <Select
+                        value={autoSpeed}
+                        onValueChange={(v) => {
+                          setAutoSpeed(v);
+                          // Restart interval with new speed if running
+                          if (autoCall) {
+                            setAutoCall(false);
+                            setTimeout(() => setAutoCall(true), 50);
+                          }
+                        }}
+                        disabled={autoCall}
+                      >
+                        <SelectTrigger
+                          data-ocid="player.autospeed.select"
+                          className="h-7 text-xs w-20 font-body"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3" className="text-xs font-body">
+                            3 sec
+                          </SelectItem>
+                          <SelectItem value="5" className="text-xs font-body">
+                            5 sec
+                          </SelectItem>
+                          <SelectItem value="8" className="text-xs font-body">
+                            8 sec
+                          </SelectItem>
+                          <SelectItem value="10" className="text-xs font-body">
+                            10 sec
+                          </SelectItem>
+                          <SelectItem value="15" className="text-xs font-body">
+                            15 sec
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     <Button
                       onClick={resetGame}
