@@ -11,6 +11,7 @@ import { type Ticket, generateTicket } from "../utils/ticketGenerator";
 
 export type PrizeType =
   | "earlyFive"
+  | "corners"
   | "topLine"
   | "middleLine"
   | "bottomLine"
@@ -18,6 +19,7 @@ export type PrizeType =
 
 export const PRIZE_LABELS: Record<PrizeType, string> = {
   earlyFive: "Early Five",
+  corners: "Corners",
   topLine: "Top Line",
   middleLine: "Middle Line",
   bottomLine: "Bottom Line",
@@ -26,11 +28,23 @@ export const PRIZE_LABELS: Record<PrizeType, string> = {
 
 export const PRIZE_EMOJI: Record<PrizeType, string> = {
   earlyFive: "🌟",
+  corners: "🔲",
   topLine: "⬆️",
   middleLine: "➡️",
   bottomLine: "⬇️",
   fullHouse: "🏆",
 };
+
+export const PRIZE_PERCENTAGES: Record<PrizeType, number> = {
+  earlyFive: 10,
+  corners: 10,
+  topLine: 10,
+  middleLine: 10,
+  bottomLine: 10,
+  fullHouse: 40,
+};
+
+export const OPERATOR_COMMISSION = 10;
 
 export type PrizeStatus = {
   winner: string | null;
@@ -40,11 +54,22 @@ export type PrizeStatus = {
 export type Player = {
   id: string;
   name: string;
+  pin: string;
+  balance: number;
   tickets: Ticket[];
   disqualifiedTickets: Set<string>;
 };
 
 export type GameStatus = "notStarted" | "inProgress" | "completed";
+
+const PRIZE_TYPES: PrizeType[] = [
+  "earlyFive",
+  "corners",
+  "topLine",
+  "middleLine",
+  "bottomLine",
+  "fullHouse",
+];
 
 type GameContextType = {
   calledNumbers: number[];
@@ -54,11 +79,21 @@ type GameContextType = {
   players: Player[];
   currentMode: "home" | "caller" | "player";
   currentPlayerId: string | null;
+  ticketPrice: number;
+  setTicketPrice: (price: number) => void;
+  totalPool: number;
   drawNumber: () => void;
   startGame: () => void;
   resetGame: () => void;
   setMode: (mode: "home" | "caller" | "player") => void;
-  addPlayer: (name: string, ticketCount: number) => Player;
+  addPlayer: (
+    name: string,
+    ticketCount: number,
+  ) => Player | "insufficient_balance";
+  loginPlayer: (
+    name: string,
+    pin: string,
+  ) => Player | "wrong_pin" | "new_player";
   claimPrize: (
     playerId: string,
     ticketId: string,
@@ -70,6 +105,7 @@ type GameContextType = {
 
 const defaultPrizes: Record<PrizeType, PrizeStatus> = {
   earlyFive: { winner: null, ticketId: null },
+  corners: { winner: null, ticketId: null },
   topLine: { winner: null, ticketId: null },
   middleLine: { winner: null, ticketId: null },
   bottomLine: { winner: null, ticketId: null },
@@ -88,6 +124,29 @@ function createNumberPool(): number[] {
   return nums;
 }
 
+function loadBalance(name: string): number {
+  const stored = localStorage.getItem(`player-${name}-balance`);
+  return stored !== null ? Number(stored) : 1000;
+}
+
+function saveBalance(name: string, balance: number) {
+  localStorage.setItem(`player-${name}-balance`, String(balance));
+}
+
+function loadPlayerRecord(name: string): { pin: string } | null {
+  const stored = localStorage.getItem(`player-${name}-record`);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+function savePlayerRecord(name: string, pin: string) {
+  localStorage.setItem(`player-${name}-record`, JSON.stringify({ pin }));
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [gameStatus, setGameStatus] = useState<GameStatus>("notStarted");
@@ -98,12 +157,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     "home",
   );
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [ticketPrice, setTicketPrice] = useState(50);
   const poolRef = useRef<number[]>([]);
   const calledSetRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     calledSetRef.current = new Set(calledNumbers);
   }, [calledNumbers]);
+
+  const totalPool =
+    players.reduce((sum, p) => sum + p.tickets.length, 0) * ticketPrice;
 
   const startGame = useCallback(() => {
     const newPool = createNumberPool();
@@ -119,7 +182,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setCalledNumbers([]);
     calledSetRef.current = new Set();
     setPrizes({ ...defaultPrizes });
-    setPlayers([]);
+    setPlayers((prev) =>
+      prev.map((p) => ({
+        ...p,
+        disqualifiedTickets: new Set(),
+      })),
+    );
     setGameStatus("notStarted");
     setCurrentPlayerId(null);
   }, []);
@@ -135,21 +203,71 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setCalledNumbers((c) => [...c, drawn]);
   }, []);
 
-  const addPlayer = useCallback((name: string, ticketCount: number): Player => {
-    const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const tickets: Ticket[] = [];
-    for (let i = 0; i < ticketCount; i++) {
-      tickets.push(generateTicket(`${id}-t${i}`));
-    }
-    const player: Player = {
-      id,
-      name,
-      tickets,
-      disqualifiedTickets: new Set(),
-    };
-    setPlayers((prev) => [...prev, player]);
-    return player;
-  }, []);
+  const addPlayer = useCallback(
+    (name: string, ticketCount: number): Player | "insufficient_balance" => {
+      const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const tickets: Ticket[] = [];
+      for (let i = 0; i < ticketCount; i++) {
+        tickets.push(generateTicket(`${id}-t${i}`));
+      }
+      const rawBalance = loadBalance(name);
+      const cost = ticketPrice * ticketCount;
+      const newBalance = Math.max(0, rawBalance - cost);
+      saveBalance(name, newBalance);
+
+      const player: Player = {
+        id,
+        name,
+        pin: "",
+        balance: newBalance,
+        tickets,
+        disqualifiedTickets: new Set(),
+      };
+      setPlayers((prev) => [...prev, player]);
+
+      if (rawBalance < cost) return "insufficient_balance";
+      return player;
+    },
+    [ticketPrice],
+  );
+
+  const loginPlayer = useCallback(
+    (name: string, pin: string): Player | "wrong_pin" | "new_player" => {
+      const trimmed = name.trim();
+      const record = loadPlayerRecord(trimmed);
+      if (record) {
+        if (record.pin !== pin) return "wrong_pin";
+        const balance = loadBalance(trimmed);
+        const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const player: Player = {
+          id,
+          name: trimmed,
+          pin,
+          balance,
+          tickets: [],
+          disqualifiedTickets: new Set(),
+        };
+        setPlayers((prev) => [...prev, player]);
+        return player;
+      }
+      // New player — register
+      savePlayerRecord(trimmed, pin);
+      const balance = 1000;
+      saveBalance(trimmed, balance);
+      const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const player: Player = {
+        id,
+        name: trimmed,
+        pin,
+        balance,
+        tickets: [],
+        disqualifiedTickets: new Set(),
+      };
+      setPlayers((prev) => [...prev, player]);
+      return "new_player";
+    },
+    [],
+  );
 
   const checkQualification = useCallback(
     (ticketId: string, prizeType: PrizeType): boolean => {
@@ -171,6 +289,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             called.has(n),
           ).length;
           return markedCount >= 5;
+        }
+        case "corners": {
+          const row0 = ticket.rows[0].filter((n): n is number => n !== null);
+          const row2 = ticket.rows[2].filter((n): n is number => n !== null);
+          const corners = [
+            row0[0],
+            row0[row0.length - 1],
+            row2[0],
+            row2[row2.length - 1],
+          ];
+          return corners.every((n) => called.has(n));
         }
         case "topLine": {
           const row0 = ticket.rows[0].filter((n): n is number => n !== null);
@@ -212,6 +341,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           [prizeType]: { winner: player.name, ticketId },
         }));
+
+        // Pool-based payout
+        const payout = Math.floor(
+          (PRIZE_PERCENTAGES[prizeType] / 100) * totalPool,
+        );
+        if (payout > 0) {
+          setPlayers((prev) =>
+            prev.map((p) => {
+              if (p.id !== playerId) return p;
+              const newBalance = p.balance + payout;
+              saveBalance(p.name, newBalance);
+              return { ...p, balance: newBalance };
+            }),
+          );
+        }
+
         return "won";
       }
 
@@ -231,7 +376,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       );
       return "bogey";
     },
-    [gameStatus, prizes, players, checkQualification],
+    [gameStatus, prizes, players, checkQualification, totalPool],
   );
 
   const setMode = useCallback((mode: "home" | "caller" | "player") => {
@@ -253,11 +398,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         players,
         currentMode,
         currentPlayerId,
+        ticketPrice,
+        setTicketPrice,
+        totalPool,
         drawNumber,
         startGame,
         resetGame,
         setMode,
         addPlayer,
+        loginPlayer,
         claimPrize,
         checkQualification,
         setCurrentPlayer: setCurrentPlayerId,
@@ -273,3 +422,6 @@ export function useGame(): GameContextType {
   if (!ctx) throw new Error("useGame must be used within GameProvider");
   return ctx;
 }
+
+// Re-export for external usage
+export { PRIZE_TYPES };
