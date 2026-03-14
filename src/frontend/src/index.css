@@ -1,0 +1,200 @@
+@font-face {
+  font-family: "Fraunces";
+  src: url("/assets/fonts/Fraunces.woff2") format("woff2");
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark / black theme */
+    --background: 0.08 0 0;
+    --foreground: 0.95 0.01 90;
+
+    --card: 0.12 0.005 60;
+    --card-foreground: 0.95 0.01 90;
+
+    --popover: 0.12 0.005 60;
+    --popover-foreground: 0.95 0.01 90;
+
+    /* Saffron orange primary */
+    --primary: 0.62 0.19 52;
+    --primary-foreground: 0.99 0.01 90;
+
+    /* Crimson secondary */
+    --secondary: 0.5 0.18 22;
+    --secondary-foreground: 0.99 0.01 90;
+
+    --muted: 0.18 0.01 60;
+    --muted-foreground: 0.65 0.04 60;
+
+    /* Golden accent */
+    --accent: 0.82 0.14 82;
+    --accent-foreground: 0.1 0.02 35;
+
+    --destructive: 0.5 0.22 15;
+    --destructive-foreground: 0.99 0.01 90;
+
+    --border: 0.25 0.02 60;
+    --input: 0.25 0.02 60;
+    --ring: 0.62 0.19 52;
+
+    --radius: 0.5rem;
+
+    /* Chart colors */
+    --chart-1: 0.62 0.19 52;
+    --chart-2: 0.5 0.18 22;
+    --chart-3: 0.82 0.14 82;
+    --chart-4: 0.55 0.15 160;
+    --chart-5: 0.65 0.17 280;
+
+    /* Sidebar */
+    --sidebar: 0.1 0.005 60;
+    --sidebar-foreground: 0.95 0.01 90;
+    --sidebar-primary: 0.62 0.19 52;
+    --sidebar-primary-foreground: 0.99 0.01 90;
+    --sidebar-accent: 0.82 0.14 82;
+    --sidebar-accent-foreground: 0.1 0.02 35;
+    --sidebar-border: 0.25 0.02 60;
+    --sidebar-ring: 0.62 0.19 52;
+
+    /* Custom Tambola tokens */
+    --ticket-bg: 0.15 0.02 80;
+    --ticket-border: 0.35 0.06 65;
+    --ticket-called: 0.62 0.19 52;
+    --ticket-header: 0.5 0.18 22;
+    --number-called: 0.55 0.2 52;
+    --number-uncalled: 0.85 0.03 90;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", sans-serif;
+    background-image: radial-gradient(
+        ellipse at 20% 0%,
+        oklch(0.62 0.19 52 / 0.07) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse at 80% 100%,
+        oklch(0.5 0.18 22 / 0.06) 0%,
+        transparent 50%
+      );
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Fraunces", serif;
+  }
+}
+
+@layer utilities {
+  .tambola-ticket-cell {
+    @apply flex items-center justify-center font-bold border border-ticket-border;
+    aspect-ratio: 1;
+    min-width: 3rem;
+    min-height: 3rem;
+    font-size: 1rem;
+    background: oklch(var(--ticket-bg));
+    color: oklch(var(--number-uncalled));
+  }
+
+  .tambola-ticket-cell.blank {
+    background: oklch(0.1 0.01 60);
+    border-color: oklch(0.22 0.02 60);
+  }
+
+  .tambola-ticket-cell.called {
+    background: oklch(var(--ticket-called));
+    color: oklch(var(--primary-foreground));
+    @apply font-black;
+  }
+
+  .tambola-ticket-cell.called.strike {
+    text-decoration: line-through;
+    text-decoration-color: oklch(0.99 0.01 90);
+    text-decoration-thickness: 2px;
+  }
+
+  .number-board-cell {
+    @apply flex items-center justify-center text-xs font-semibold rounded transition-all duration-300;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .number-board-cell.called {
+    background: oklch(var(--primary));
+    color: oklch(var(--primary-foreground));
+    @apply shadow-md scale-105;
+  }
+
+  .prize-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold;
+  }
+
+  .festive-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.62 0.19 52) 0%,
+      oklch(0.55 0.2 35) 50%,
+      oklch(0.5 0.18 22) 100%
+    );
+  }
+
+  .gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(0.75 0.14 82),
+      oklch(0.88 0.12 88),
+      oklch(0.75 0.14 82)
+    );
+    background-size: 200% auto;
+    animation: shimmer 2.5s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 0% center;
+    }
+    to {
+      background-position: 200% center;
+    }
+  }
+
+  .pulse-number {
+    animation: pulse-scale 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes pulse-scale {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .border-ticket-border {
+    border-color: oklch(var(--ticket-border));
+  }
+}
