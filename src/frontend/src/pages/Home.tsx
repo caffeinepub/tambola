@@ -28,9 +28,9 @@ export function Home() {
             {/* New Logo */}
             <div className="flex justify-center mb-4">
               <img
-                src="/assets/generated/tambola-logo-transparent.dim_200x80.png"
+                src="/assets/generated/tambola-logo-new-transparent.dim_300x120.png"
                 alt="Tambola Logo"
-                className="h-20 object-contain drop-shadow-[0_0_24px_oklch(0.8_0.2_60/0.7)]"
+                className="h-16 md:h-20 object-contain drop-shadow-[0_0_24px_oklch(0.8_0.2_60/0.7)]"
               />
             </div>
             <p
@@ -105,7 +105,7 @@ export function Home() {
               style={{ background: "oklch(0.18 0.08 280)" }}
             >
               <span className="text-sm text-muted-foreground font-body">
-                🎫 Get tickets · 🏆 Win prizes
+                🎫 Get tickets · 🏆 Win prizes · 🎰 Place bets
               </span>
               <span
                 className="font-bold text-xl group-hover:translate-x-1 transition-transform"

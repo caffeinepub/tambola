@@ -20,9 +20,9 @@ export type PrizeType =
 export const PRIZE_LABELS: Record<PrizeType, string> = {
   earlyFive: "Early Five",
   corners: "Corners",
-  topLine: "Top Line",
-  middleLine: "Middle Line",
-  bottomLine: "Bottom Line",
+  topLine: "Top Row",
+  middleLine: "Middle Row",
+  bottomLine: "Bottom Row",
   fullHouse: "Full House",
 };
 
@@ -56,6 +56,8 @@ export type Player = {
   name: string;
   pin: string;
   balance: number;
+  wallet: number;
+  bets: Partial<Record<PrizeType, number>>;
   tickets: Ticket[];
   disqualifiedTickets: Set<string>;
 };
@@ -89,11 +91,14 @@ type GameContextType = {
   addPlayer: (
     name: string,
     ticketCount: number,
+    playerId?: string,
   ) => Player | "insufficient_balance";
-  loginPlayer: (
-    name: string,
-    pin: string,
-  ) => Player | "wrong_pin" | "new_player";
+  loginPlayer: (name: string, pin: string) => Player | "wrong_pin";
+  placeBet: (
+    playerId: string,
+    prizeType: PrizeType,
+    amount: number,
+  ) => "ok" | "insufficient" | "game_started";
   claimPrize: (
     playerId: string,
     ticketId: string,
@@ -131,6 +136,29 @@ function loadBalance(name: string): number {
 
 function saveBalance(name: string, balance: number) {
   localStorage.setItem(`player-${name}-balance`, String(balance));
+}
+
+function loadWallet(name: string): number {
+  const stored = localStorage.getItem(`tambola-player-${name}`);
+  if (!stored) return 1000;
+  try {
+    const data = JSON.parse(stored);
+    return typeof data.wallet === "number" ? data.wallet : 1000;
+  } catch {
+    return 1000;
+  }
+}
+
+function saveWallet(name: string, wallet: number) {
+  const stored = localStorage.getItem(`tambola-player-${name}`);
+  let data: Record<string, unknown> = {};
+  if (stored) {
+    try {
+      data = JSON.parse(stored);
+    } catch {}
+  }
+  data.wallet = wallet;
+  localStorage.setItem(`tambola-player-${name}`, JSON.stringify(data));
 }
 
 function loadPlayerRecord(name: string): { pin: string } | null {
@@ -185,6 +213,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setPlayers((prev) =>
       prev.map((p) => ({
         ...p,
+        tickets: [],
+        bets: {},
         disqualifiedTickets: new Set(),
       })),
     );
@@ -204,46 +234,87 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addPlayer = useCallback(
-    (name: string, ticketCount: number): Player | "insufficient_balance" => {
-      const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    (
+      name: string,
+      ticketCount: number,
+      existingId?: string,
+    ): Player | "insufficient_balance" => {
+      const id =
+        existingId ||
+        `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const tickets: Ticket[] = [];
       for (let i = 0; i < ticketCount; i++) {
-        tickets.push(generateTicket(`${id}-t${i}`));
+        tickets.push(generateTicket(`${id}-t${i}-${Date.now()}`));
       }
       const rawBalance = loadBalance(name);
       const cost = ticketPrice * ticketCount;
       const newBalance = Math.max(0, rawBalance - cost);
       saveBalance(name, newBalance);
 
+      if (rawBalance < cost) return "insufficient_balance";
+
+      const wallet = loadWallet(name);
+
+      if (existingId) {
+        // Update existing player's tickets
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.id === existingId
+              ? {
+                  ...p,
+                  tickets: [...p.tickets, ...tickets],
+                  balance: newBalance,
+                }
+              : p,
+          ),
+        );
+        // Return a synthetic player object for the caller
+        const found = players.find((p) => p.id === existingId);
+        if (found) {
+          return {
+            ...found,
+            tickets: [...found.tickets, ...tickets],
+            balance: newBalance,
+          };
+        }
+      }
+
       const player: Player = {
         id,
         name,
         pin: "",
         balance: newBalance,
+        wallet,
+        bets: {},
         tickets,
         disqualifiedTickets: new Set(),
       };
-      setPlayers((prev) => [...prev, player]);
-
-      if (rawBalance < cost) return "insufficient_balance";
+      setPlayers((prev) => {
+        const exists = prev.find((p) => p.id === id);
+        if (exists) return prev;
+        return [...prev, player];
+      });
       return player;
     },
-    [ticketPrice],
+    [ticketPrice, players],
   );
 
   const loginPlayer = useCallback(
-    (name: string, pin: string): Player | "wrong_pin" | "new_player" => {
+    (name: string, pin: string): Player | "wrong_pin" => {
       const trimmed = name.trim();
       const record = loadPlayerRecord(trimmed);
       if (record) {
         if (record.pin !== pin) return "wrong_pin";
         const balance = loadBalance(trimmed);
+        const wallet = loadWallet(trimmed);
         const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const player: Player = {
           id,
           name: trimmed,
           pin,
           balance,
+          wallet,
+          bets: {},
           tickets: [],
           disqualifiedTickets: new Set(),
         };
@@ -253,20 +324,50 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       // New player — register
       savePlayerRecord(trimmed, pin);
       const balance = 1000;
+      const wallet = 1000;
       saveBalance(trimmed, balance);
+      saveWallet(trimmed, wallet);
       const id = `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const player: Player = {
         id,
         name: trimmed,
         pin,
         balance,
+        wallet,
+        bets: {},
         tickets: [],
         disqualifiedTickets: new Set(),
       };
       setPlayers((prev) => [...prev, player]);
-      return "new_player";
+      return player;
     },
     [],
+  );
+
+  const placeBet = useCallback(
+    (
+      playerId: string,
+      prizeType: PrizeType,
+      amount: number,
+    ): "ok" | "insufficient" | "game_started" => {
+      if (gameStatus !== "notStarted") return "game_started";
+      const player = players.find((p) => p.id === playerId);
+      if (!player) return "insufficient";
+      if (player.wallet < amount) return "insufficient";
+
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.id !== playerId) return p;
+          const newWallet = p.wallet - amount;
+          const currentBet = p.bets[prizeType] ?? 0;
+          const newBets = { ...p.bets, [prizeType]: currentBet + amount };
+          saveWallet(p.name, newWallet);
+          return { ...p, wallet: newWallet, bets: newBets };
+        }),
+      );
+      return "ok";
+    },
+    [gameStatus, players],
   );
 
   const checkQualification = useCallback(
@@ -346,16 +447,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const payout = Math.floor(
           (PRIZE_PERCENTAGES[prizeType] / 100) * totalPool,
         );
-        if (payout > 0) {
-          setPlayers((prev) =>
-            prev.map((p) => {
-              if (p.id !== playerId) return p;
-              const newBalance = p.balance + payout;
-              saveBalance(p.name, newBalance);
-              return { ...p, balance: newBalance };
-            }),
-          );
-        }
+
+        setPlayers((prev) =>
+          prev.map((p) => {
+            if (p.id !== playerId) return p;
+            let newBalance = p.balance + payout;
+            let newWallet = p.wallet;
+            // 2x bet payout
+            const betAmount = p.bets[prizeType] ?? 0;
+            if (betAmount > 0) {
+              newWallet = p.wallet + betAmount * 2;
+              saveWallet(p.name, newWallet);
+            }
+            if (payout > 0) saveBalance(p.name, newBalance);
+            return { ...p, balance: newBalance, wallet: newWallet };
+          }),
+        );
 
         return "won";
       }
@@ -407,6 +514,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setMode,
         addPlayer,
         loginPlayer,
+        placeBet,
         claimPrize,
         checkQualification,
         setCurrentPlayer: setCurrentPlayerId,
