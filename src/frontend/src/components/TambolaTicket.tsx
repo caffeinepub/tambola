@@ -27,12 +27,7 @@ const PRIZE_TYPES: PrizeType[] = [
   "fullHouse",
 ];
 
-type CellData = {
-  cell: number | null;
-  cellKey: string;
-  isCalled: boolean;
-  isBlank: boolean;
-};
+const ROW_LABELS = ["1–30", "31–60", "61–90"];
 
 export function TambolaTicket({
   ticket,
@@ -46,8 +41,6 @@ export function TambolaTicket({
     useGame();
 
   const calledSet = useMemo(() => new Set(calledNumbers), [calledNumbers]);
-
-  // Manual marking state — players tap called numbers to mark them
   const [markedCells, setMarkedCells] = useState<Set<number>>(new Set());
 
   const player = players.find((p) => p.id === playerId);
@@ -57,24 +50,12 @@ export function TambolaTicket({
     .filter(([, s]) => s.ticketId === ticket.id)
     .map(([k]) => k as PrizeType);
 
-  const flatCells: CellData[] = ticket.rows.flatMap((row, rowIdx) =>
-    row.map((cell, colIdx) => ({
-      cell,
-      cellKey: `r${rowIdx}c${colIdx}`,
-      isCalled: cell !== null && calledSet.has(cell),
-      isBlank: cell === null,
-    })),
-  );
-
   const handleCellClick = (cell: number | null) => {
     if (cell === null || !calledSet.has(cell)) return;
     setMarkedCells((prev) => {
       const next = new Set(prev);
-      if (next.has(cell)) {
-        next.delete(cell);
-      } else {
-        next.add(cell);
-      }
+      if (next.has(cell)) next.delete(cell);
+      else next.add(cell);
       return next;
     });
   };
@@ -84,87 +65,115 @@ export function TambolaTicket({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: isDisqualified ? 0.45 : 1, y: 0 }}
       transition={{ delay: ticketIndex * 0.1 }}
-      className={`rounded-xl overflow-hidden shadow-ticket border-2 ${
+      className={`rounded-lg overflow-hidden shadow-lg border-2 ${
         isDisqualified ? "border-gray-400 grayscale" : "border-black"
       }`}
     >
-      {/* Ticket Header — black background, white text */}
+      {/* Header — pure black */}
       <div className="bg-black px-3 py-2 flex items-center justify-between gap-2">
-        <span className="font-display text-white font-bold text-sm tracking-wide">
+        <span className="text-white font-bold text-sm tracking-wide">
           🎫 Ticket #{ticketIndex + 1}
         </span>
-        <span className="text-white/70 text-xs font-body flex-1 truncate">
+        <span className="text-white/70 text-xs flex-1 truncate text-right">
           {playerName}
         </span>
-
         {isDisqualified && (
-          <Badge variant="destructive" className="text-xs">
+          <Badge variant="destructive" className="text-xs ml-2">
             Disqualified
           </Badge>
         )}
       </div>
 
-      {/* Ticket Grid — white background */}
-      <div className="p-3 bg-white">
-        <div
-          className="grid gap-1"
-          style={{ gridTemplateColumns: "repeat(9, minmax(0, 1fr))" }}
-        >
-          {flatCells.map(({ cell, cellKey, isCalled, isBlank }) => {
-            const isMarked = cell !== null && markedCells.has(cell);
-            const canMark = isCalled && !isMarked;
+      {/* Ticket Grid — rows with labels */}
+      <div className="bg-white">
+        {ticket.rows.map((row, rowIdx) => (
+          <div key={ROW_LABELS[rowIdx]} className="flex items-stretch">
+            {/* Row range label */}
+            <div
+              className={`flex items-center justify-center text-white font-bold text-xs writing-mode-vertical shrink-0 ${
+                rowIdx < 2 ? "border-b-2 border-black" : ""
+              }`}
+              style={{
+                width: "1.8rem",
+                background: "#111",
+                fontSize: "0.65rem",
+                letterSpacing: "0.05em",
+                borderRight: "2px solid black",
+                writingMode: "vertical-rl",
+                transform: "rotate(180deg)",
+                padding: "4px 2px",
+              }}
+            >
+              {ROW_LABELS[rowIdx]}
+            </div>
 
-            let cellClass = "tambola-ticket-cell ";
-            if (isBlank) {
-              cellClass += "bg-gray-100 border border-gray-200 cursor-default";
-            } else if (isMarked) {
-              cellClass +=
-                "bg-black text-white line-through border border-black cursor-pointer";
-            } else if (canMark) {
-              cellClass +=
-                "bg-white border-2 border-green-500 text-black cursor-pointer hover:bg-green-50 transition-colors";
-            } else {
-              cellClass +=
-                "bg-white border border-gray-300 text-gray-400 cursor-default";
-            }
+            {/* 9 cells for this row */}
+            <div
+              className={`flex-1 grid ${
+                rowIdx < 2 ? "border-b-2 border-black" : ""
+              }`}
+              style={{ gridTemplateColumns: "repeat(9, minmax(0, 1fr))" }}
+            >
+              {row.map((cell, colIdx) => {
+                const isCalled = cell !== null && calledSet.has(cell);
+                const isBlank = cell === null;
+                const isMarked = cell !== null && markedCells.has(cell);
+                const canMark = isCalled && !isMarked;
 
-            return (
-              <div
-                key={cellKey}
-                className={cellClass}
-                style={{ borderRadius: "3px" }}
-                onClick={() => handleCellClick(cell)}
-                role={isCalled && !isBlank ? "button" : undefined}
-                tabIndex={isCalled && !isBlank ? 0 : undefined}
-                onKeyDown={(e) =>
-                  e.key === "Enter" || e.key === " "
-                    ? handleCellClick(cell)
-                    : undefined
+                let cellClass =
+                  "aspect-square flex items-center justify-center font-semibold select-none border-r border-gray-300 last:border-r-0 ";
+
+                if (isBlank) {
+                  cellClass += "bg-gray-100 cursor-default";
+                } else if (isMarked) {
+                  cellClass += "bg-black text-white font-black cursor-pointer";
+                } else if (canMark) {
+                  cellClass +=
+                    "bg-white border-2 border-black text-black font-black cursor-pointer ring-2 ring-black ring-offset-1 ring-offset-white";
+                } else {
+                  cellClass += "bg-white text-gray-800 cursor-default";
                 }
-                aria-pressed={isMarked ? true : undefined}
-                aria-label={
-                  cell !== null
-                    ? isMarked
-                      ? `${cell} marked`
-                      : isCalled
-                        ? `${cell} called — tap to mark`
-                        : `${cell}`
-                    : undefined
-                }
-              >
-                {cell !== null ? cell : ""}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-center text-xs text-gray-400 font-body mt-2">
-          Tap called numbers (green border) to mark them
+
+                return (
+                  <div
+                    key={`${ticket.id}-r${rowIdx}c${colIdx}`}
+                    className={cellClass}
+                    style={{ minHeight: "2.4rem", fontSize: "0.78rem" }}
+                    onClick={() => handleCellClick(cell)}
+                    role={isCalled && !isBlank ? "button" : undefined}
+                    tabIndex={isCalled && !isBlank ? 0 : undefined}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" || e.key === " "
+                        ? handleCellClick(cell)
+                        : undefined
+                    }
+                    aria-pressed={isMarked ? true : undefined}
+                    aria-label={
+                      cell !== null
+                        ? isMarked
+                          ? `${cell} marked`
+                          : isCalled
+                            ? `${cell} called — tap to mark`
+                            : `${cell}`
+                        : undefined
+                    }
+                  >
+                    {cell !== null ? cell : ""}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <p className="text-center text-xs text-gray-400 py-1.5 border-t border-gray-200">
+          Tap called numbers to mark them
         </p>
       </div>
 
       {/* Prize Claim Buttons */}
       {showClaims && !isDisqualified && gameStatus === "inProgress" && (
-        <div className="bg-gray-50 px-3 py-2 flex flex-wrap gap-1.5 border-t border-gray-200">
+        <div className="bg-gray-100 px-3 py-2 flex flex-wrap gap-1.5 border-t-2 border-black">
           {PRIZE_TYPES.map((pt) => {
             const alreadyClaimed = prizes[pt].winner !== null;
             const wonByThis = claimedByThis.includes(pt);
@@ -175,16 +184,14 @@ export function TambolaTicket({
               return (
                 <Badge
                   key={pt}
-                  className="bg-green-600 text-white text-xs px-2 py-1"
+                  className="bg-black text-white text-xs px-2 py-1"
                 >
                   {PRIZE_EMOJI[pt]} Won!
                 </Badge>
               );
             }
 
-            if (alreadyClaimed && !wonByThis) {
-              return null;
-            }
+            if (alreadyClaimed && !wonByThis) return null;
 
             return (
               <Button
@@ -195,7 +202,7 @@ export function TambolaTicket({
                 className={`text-xs h-7 px-2 ${
                   qualified
                     ? "bg-black text-white hover:bg-gray-800 border-0"
-                    : ""
+                    : "border-gray-300 text-gray-400"
                 }`}
                 data-ocid={`ticket.${pt}.button.${ticketIndex + 1}`}
                 onClick={() => onClaim?.(ticket.id, pt)}

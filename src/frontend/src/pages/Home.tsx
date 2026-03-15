@@ -25,13 +25,14 @@ export function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
           >
-            <div className="text-6xl mb-4">🎱</div>
-            <h1
-              className="font-display text-6xl md:text-8xl font-bold mb-3 tracking-tight"
-              style={{ color: "oklch(0.9 0.12 60)" }}
-            >
-              Tambola
-            </h1>
+            {/* New Logo */}
+            <div className="flex justify-center mb-4">
+              <img
+                src="/assets/generated/tambola-logo-transparent.dim_200x80.png"
+                alt="Tambola Logo"
+                className="h-20 object-contain drop-shadow-[0_0_24px_oklch(0.8_0.2_60/0.7)]"
+              />
+            </div>
             <p
               className="text-lg md:text-xl font-body mb-2"
               style={{ color: "oklch(0.85 0.08 60 / 0.8)" }}
