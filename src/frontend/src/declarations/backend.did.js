@@ -8,10 +8,183 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const idlService = IDL.Service({});
+export const BetId = IDL.Text;
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
+});
+export const ShoppingItem = IDL.Record({
+  'productName' : IDL.Text,
+  'currency' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'priceInCents' : IDL.Nat,
+  'productDescription' : IDL.Text,
+});
+export const Bet = IDL.Record({
+  'id' : BetId,
+  'status' : IDL.Variant({
+    'won' : IDL.Null,
+    'lost' : IDL.Null,
+    'open' : IDL.Null,
+    'refunded' : IDL.Null,
+    'matched' : IDL.Null,
+  }),
+  'winnerId' : IDL.Opt(IDL.Principal),
+  'stakeAmount' : IDL.Nat,
+  'creatorId' : IDL.Principal,
+  'gameId' : IDL.Text,
+  'acceptorId' : IDL.Opt(IDL.Principal),
+  'prizeType' : IDL.Text,
+});
+export const StripeSessionStatus = IDL.Variant({
+  'completed' : IDL.Record({
+    'userPrincipal' : IDL.Opt(IDL.Text),
+    'response' : IDL.Text,
+  }),
+  'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
+export const StripeConfiguration = IDL.Record({
+  'allowedCountries' : IDL.Vec(IDL.Text),
+  'secretKey' : IDL.Text,
+});
+export const http_header = IDL.Record({
+  'value' : IDL.Text,
+  'name' : IDL.Text,
+});
+export const http_request_result = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+export const TransformationInput = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : http_request_result,
+});
+export const TransformationOutput = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+
+export const idlService = IDL.Service({
+  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'acceptBet' : IDL.Func([BetId], [IDL.Text], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createBet' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [BetId], []),
+  'createCheckoutSession' : IDL.Func(
+      [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+      [IDL.Text],
+      [],
+    ),
+  'getActiveUsers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+  'getBalance' : IDL.Func([], [IDL.Nat], ['query']),
+  'getBetById' : IDL.Func([BetId], [Bet], ['query']),
+  'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+  'getUserBets' : IDL.Func([IDL.Principal], [IDL.Vec(Bet)], ['query']),
+  'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+  'listOpenBets' : IDL.Func([IDL.Text], [IDL.Vec(Bet)], ['query']),
+  'refundBet' : IDL.Func([BetId], [IDL.Text], []),
+  'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'settleBet' : IDL.Func([BetId, IDL.Principal], [IDL.Text], []),
+  'transform' : IDL.Func(
+      [TransformationInput],
+      [TransformationOutput],
+      ['query'],
+    ),
+  'withdrawRequest' : IDL.Func([IDL.Nat], [IDL.Text], []),
+});
 
 export const idlInitArgs = [];
 
-export const idlFactory = ({ IDL }) => { return IDL.Service({}); };
+export const idlFactory = ({ IDL }) => {
+  const BetId = IDL.Text;
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
+  });
+  const ShoppingItem = IDL.Record({
+    'productName' : IDL.Text,
+    'currency' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'priceInCents' : IDL.Nat,
+    'productDescription' : IDL.Text,
+  });
+  const Bet = IDL.Record({
+    'id' : BetId,
+    'status' : IDL.Variant({
+      'won' : IDL.Null,
+      'lost' : IDL.Null,
+      'open' : IDL.Null,
+      'refunded' : IDL.Null,
+      'matched' : IDL.Null,
+    }),
+    'winnerId' : IDL.Opt(IDL.Principal),
+    'stakeAmount' : IDL.Nat,
+    'creatorId' : IDL.Principal,
+    'gameId' : IDL.Text,
+    'acceptorId' : IDL.Opt(IDL.Principal),
+    'prizeType' : IDL.Text,
+  });
+  const StripeSessionStatus = IDL.Variant({
+    'completed' : IDL.Record({
+      'userPrincipal' : IDL.Opt(IDL.Text),
+      'response' : IDL.Text,
+    }),
+    'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
+  const StripeConfiguration = IDL.Record({
+    'allowedCountries' : IDL.Vec(IDL.Text),
+    'secretKey' : IDL.Text,
+  });
+  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const http_request_result = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  const TransformationInput = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : http_request_result,
+  });
+  const TransformationOutput = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  
+  return IDL.Service({
+    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'acceptBet' : IDL.Func([BetId], [IDL.Text], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createBet' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [BetId], []),
+    'createCheckoutSession' : IDL.Func(
+        [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+        [IDL.Text],
+        [],
+      ),
+    'getActiveUsers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'getBalance' : IDL.Func([], [IDL.Nat], ['query']),
+    'getBetById' : IDL.Func([BetId], [Bet], ['query']),
+    'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+    'getUserBets' : IDL.Func([IDL.Principal], [IDL.Vec(Bet)], ['query']),
+    'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+    'listOpenBets' : IDL.Func([IDL.Text], [IDL.Vec(Bet)], ['query']),
+    'refundBet' : IDL.Func([BetId], [IDL.Text], []),
+    'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'settleBet' : IDL.Func([BetId, IDL.Principal], [IDL.Text], []),
+    'transform' : IDL.Func(
+        [TransformationInput],
+        [TransformationOutput],
+        ['query'],
+      ),
+    'withdrawRequest' : IDL.Func([IDL.Nat], [IDL.Text], []),
+  });
+};
 
 export const init = ({ IDL }) => { return []; };

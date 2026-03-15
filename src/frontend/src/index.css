@@ -106,6 +106,32 @@
   }
 }
 
+/* ─── CSS Auto-Rotation Fallback ───────────────────────────────────────────── */
+/* When the device is in portrait mode and the JS lock API is unavailable,      */
+/* rotate the entire app 90° so it always appears in landscape orientation.     */
+@media (orientation: portrait) {
+  html,
+  body {
+    overflow: hidden;
+  }
+
+  #root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    /* Swap width/height: use viewport height as width and viewport width as height */
+    width: 100vh;
+    height: 100vw;
+    /* Rotate 90° clockwise and anchor from top-left corner */
+    transform: rotate(90deg);
+    transform-origin: top left;
+    /* Shift down by full viewport width so the rotated content sits in view */
+    translate: 0 100vw;
+    overflow: auto;
+  }
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 @layer utilities {
   .tambola-ticket-cell {
     @apply flex items-center justify-center font-bold border border-ticket-border;

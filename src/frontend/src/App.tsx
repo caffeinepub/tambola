@@ -1,11 +1,19 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect } from "react";
 import { GameProvider, useGame } from "./context/GameContext";
+import { Admin } from "./pages/Admin";
 import { Home } from "./pages/Home";
+import { Login } from "./pages/Login";
 import { PlayerMode } from "./pages/PlayerMode";
+import { Profile } from "./pages/Profile";
 
 function AppRoutes() {
-  const { currentMode } = useGame();
+  const { currentMode, authPlayer } = useGame();
+
+  if (!authPlayer) {
+    return <Login />;
+  }
 
   return (
     <AnimatePresence mode="wait">
@@ -18,12 +26,29 @@ function AppRoutes() {
       >
         {currentMode === "home" && <Home />}
         {currentMode === "player" && <PlayerMode />}
+        {currentMode === "profile" && <Profile />}
+        {currentMode === "admin" && <Admin />}
       </motion.div>
     </AnimatePresence>
   );
 }
 
 export default function App() {
+  useEffect(() => {
+    const lockOrientation = async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const orientation = screen.orientation as any;
+        if (orientation && typeof orientation.lock === "function") {
+          await orientation.lock("landscape");
+        }
+      } catch {
+        // Browser may deny — CSS fallback handles visual rotation
+      }
+    };
+    lockOrientation();
+  }, []);
+
   return (
     <GameProvider>
       <AppRoutes />

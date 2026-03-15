@@ -1,12 +1,68 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
-    <script type="module" crossorigin src="/assets/index-zCm9ghEX.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DQohj5cQ.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="screen-orientation" content="landscape" />
+    <title>Tambola</title>
+    <style>
+      #rotate-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #0a0a1a;
+        color: #fff;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        font-family: sans-serif;
+        text-align: center;
+        padding: 2rem;
+      }
+      #rotate-overlay .icon {
+        font-size: 5rem;
+        animation: rotateHint 1.5s ease-in-out infinite alternate;
+      }
+      #rotate-overlay h2 {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin: 0;
+        color: #facc15;
+      }
+      #rotate-overlay p {
+        font-size: 1rem;
+        color: #a0a0b0;
+        margin: 0;
+      }
+      @keyframes rotateHint {
+        from { transform: rotate(-30deg); }
+        to   { transform: rotate(30deg); }
+      }
+      @media (orientation: portrait) {
+        #rotate-overlay { display: flex; }
+        #root { display: none; }
+      }
+      @media (orientation: landscape) {
+        #rotate-overlay { display: none; }
+        #root { display: block; }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-r11Ha87k.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BZNQZyLQ.css">
   </head>
   <body>
+    <div id="rotate-overlay">
+      <div class="icon">&#x1F4F1;</div>
+      <h2>Rotate Your Device</h2>
+      <p>Tambola is designed for landscape mode.<br/>Please turn your phone sideways to play.</p>
+    </div>
     <div id="root"></div>
+    <script>
+      // Request landscape lock if supported
+      if (screen && screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function() {});
+      }
+    </script>
   </body>
 </html>

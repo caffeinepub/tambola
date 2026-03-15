@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { NumberBoard } from "../components/NumberBoard";
+import { PvpBetStatus } from "../components/PvpBetStatus";
 import { TambolaTicket } from "../components/TambolaTicket";
 import {
   PRIZE_EMOJI,
@@ -329,152 +330,6 @@ function LoginScreen({ onLogin, onGuest }: LoginScreenProps) {
 }
 
 // ─── Betting Panel ────────────────────────────────────────────────────────────
-interface BettingPanelProps {
-  player: Player;
-  onBet: (prizeType: PrizeType, amount: number) => void;
-}
-
-function BettingPanel({ player, onBet }: BettingPanelProps) {
-  const [customAmounts, setCustomAmounts] = useState<
-    Partial<Record<PrizeType, string>>
-  >({});
-
-  const wallet = player.wallet;
-
-  return (
-    <div
-      className="rounded-xl border p-4"
-      style={{
-        background: "oklch(0.16 0.07 200)",
-        borderColor: "oklch(0.38 0.18 80 / 0.4)",
-        boxShadow: "0 0 30px oklch(0.5 0.22 80 / 0.08)",
-      }}
-      data-ocid="betting.panel"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <h3
-          className="font-display text-sm font-bold"
-          style={{ color: "oklch(0.88 0.15 80)" }}
-        >
-          🎰 Place Your Bets
-        </h3>
-        <span
-          className="text-xs font-mono px-2 py-1 rounded-full"
-          style={{
-            background: "oklch(0.28 0.12 80 / 0.4)",
-            color: "oklch(0.88 0.18 80)",
-          }}
-        >
-          🪙 {wallet} coins
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground font-body mb-3">
-        Win 2× your bet on the correct prize!
-      </p>
-      <div className="space-y-2">
-        {ALL_PRIZES.map((pt) => {
-          const currentBet = player.bets[pt] ?? 0;
-          const customVal = customAmounts[pt] ?? "";
-          return (
-            <div
-              key={pt}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5"
-              style={{ background: "oklch(0.2 0.06 160 / 0.5)" }}
-            >
-              <span className="text-sm w-5">{PRIZE_EMOJI[pt]}</span>
-              <span
-                className="text-xs font-body flex-1"
-                style={{ color: "oklch(0.82 0.1 160)" }}
-              >
-                {PRIZE_LABELS[pt]}
-              </span>
-              {currentBet > 0 && (
-                <span
-                  className="text-xs font-mono px-1.5 py-0.5 rounded"
-                  style={{
-                    background: "oklch(0.3 0.15 80 / 0.4)",
-                    color: "oklch(0.88 0.18 80)",
-                  }}
-                >
-                  🪙{currentBet}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => onBet(pt, 10)}
-                data-ocid="betting.button"
-                className="text-xs px-2 py-1 rounded transition-opacity hover:opacity-80"
-                style={{
-                  background: "oklch(0.38 0.16 160 / 0.5)",
-                  color: "oklch(0.88 0.14 160)",
-                }}
-                disabled={wallet < 10}
-              >
-                +10
-              </button>
-              <button
-                type="button"
-                onClick={() => onBet(pt, 50)}
-                data-ocid="betting.button"
-                className="text-xs px-2 py-1 rounded transition-opacity hover:opacity-80"
-                style={{
-                  background: "oklch(0.38 0.16 160 / 0.5)",
-                  color: "oklch(0.88 0.14 160)",
-                }}
-                disabled={wallet < 50}
-              >
-                +50
-              </button>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="1"
-                  max={wallet}
-                  placeholder="?"
-                  value={customVal}
-                  onChange={(e) =>
-                    setCustomAmounts((prev) => ({
-                      ...prev,
-                      [pt]: e.target.value,
-                    }))
-                  }
-                  data-ocid="betting.input"
-                  className="w-12 text-xs rounded px-1.5 py-1 text-center font-mono outline-none"
-                  style={{
-                    background: "oklch(0.22 0.07 160)",
-                    border: "1px solid oklch(0.35 0.1 160 / 0.4)",
-                    color: "oklch(0.88 0.12 160)",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const amt = Number.parseInt(customVal);
-                    if (!Number.isNaN(amt) && amt > 0) {
-                      onBet(pt, amt);
-                      setCustomAmounts((prev) => ({ ...prev, [pt]: "" }));
-                    }
-                  }}
-                  data-ocid="betting.submit_button"
-                  className="text-xs px-2 py-1 rounded font-bold transition-opacity hover:opacity-80"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, oklch(0.5 0.22 80), oklch(0.42 0.18 90))",
-                    color: "white",
-                  }}
-                  disabled={wallet <= 0}
-                >
-                  Bet
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main PlayerMode ──────────────────────────────────────────────────────────
 export function PlayerMode() {
   const {
@@ -483,7 +338,6 @@ export function PlayerMode() {
     calledNumbers,
     addPlayer,
     claimPrize,
-    placeBet,
     setMode,
     players,
     loginPlayer,
@@ -492,12 +346,13 @@ export function PlayerMode() {
     drawNumber,
     ticketPrice,
     setTicketPrice,
+    authPlayer,
   } = useGame();
   const [displayName, setDisplayName] = useState("");
   const [ticketCount, setTicketCount] = useState("1");
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showNumberBoard, setShowNumberBoard] = useState(true);
+  const [showNumberBoard, setShowNumberBoard] = useState(false);
   const [autoCall, setAutoCall] = useState(false);
   const autoCallRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialized = useRef(false);
@@ -575,13 +430,14 @@ export function PlayerMode() {
 
   const handleGuest = useCallback(() => {
     const { guestName } = getOrCreateGuestIdentity();
-    const result = addPlayer(guestName, 1);
+    const nameToUse = authPlayer ? authPlayer.name : guestName;
+    const result = addPlayer(nameToUse, 1);
     if (result !== "insufficient_balance") {
-      setDisplayName(guestName);
+      setDisplayName(nameToUse);
       setCurrentPlayer(result);
       setIsLoggedIn(true);
     }
-  }, [addPlayer]);
+  }, [addPlayer, authPlayer]);
 
   const handleAddTickets = useCallback(() => {
     if (!currentPlayer) return;
@@ -620,21 +476,6 @@ export function PlayerMode() {
       }
     },
     [currentPlayer, claimPrize],
-  );
-
-  const handleBet = useCallback(
-    (prizeType: PrizeType, amount: number) => {
-      if (!currentPlayer) return;
-      const result = placeBet(currentPlayer.id, prizeType, amount);
-      if (result === "ok") {
-        toast.success(`Bet ${amount} coins on ${PRIZE_LABELS[prizeType]}!`);
-      } else if (result === "insufficient") {
-        toast.error("Not enough coins!");
-      } else {
-        toast.warning("Bets are locked once the game starts.");
-      }
-    },
-    [currentPlayer, placeBet],
   );
 
   const lastCalled = calledNumbers[calledNumbers.length - 1];
@@ -1043,11 +884,8 @@ export function PlayerMode() {
                 ))}
               </div>
             </div>
-
-            {/* Betting panel — only before game starts */}
-            {gameStatus === "notStarted" && livePlayer && (
-              <BettingPanel player={livePlayer} onBet={handleBet} />
-            )}
+            {/* PvP Bet Status */}
+            <PvpBetStatus gameId="current-game" />
 
             {/* Tickets heading */}
             <div className="flex items-center justify-between px-1">

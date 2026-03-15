@@ -7,5 +7,87 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export type BetId = string;
+export interface TransformationOutput {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
+export interface ShoppingItem {
+    productName: string;
+    currency: string;
+    quantity: bigint;
+    priceInCents: bigint;
+    productDescription: string;
+}
+export interface Bet {
+    id: BetId;
+    status: Variant_won_lost_open_refunded_matched;
+    winnerId?: Principal;
+    stakeAmount: bigint;
+    creatorId: Principal;
+    gameId: string;
+    acceptorId?: Principal;
+    prizeType: string;
+}
+export interface TransformationInput {
+    context: Uint8Array;
+    response: http_request_result;
+}
+export type StripeSessionStatus = {
+    __kind__: "completed";
+    completed: {
+        userPrincipal?: string;
+        response: string;
+    };
+} | {
+    __kind__: "failed";
+    failed: {
+        error: string;
+    };
+};
+export interface StripeConfiguration {
+    allowedCountries: Array<string>;
+    secretKey: string;
+}
+export interface http_header {
+    value: string;
+    name: string;
+}
+export interface http_request_result {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
+export enum UserRole {
+    admin = "admin",
+    user = "user",
+    guest = "guest"
+}
+export enum Variant_won_lost_open_refunded_matched {
+    won = "won",
+    lost = "lost",
+    open = "open",
+    refunded = "refunded",
+    matched = "matched"
+}
 export interface backendInterface {
+    acceptBet(betId: BetId): Promise<string>;
+    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    createBet(prizeType: string, stakeAmount: bigint, gameId: string): Promise<BetId>;
+    createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
+    getActiveUsers(): Promise<Array<Principal>>;
+    getBalance(): Promise<bigint>;
+    getBetById(betId: BetId): Promise<Bet>;
+    getCallerUserRole(): Promise<UserRole>;
+    getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
+    getUserBets(userId: Principal): Promise<Array<Bet>>;
+    isCallerAdmin(): Promise<boolean>;
+    isStripeConfigured(): Promise<boolean>;
+    listOpenBets(gameId: string): Promise<Array<Bet>>;
+    refundBet(betId: BetId): Promise<string>;
+    setStripeConfiguration(config: StripeConfiguration): Promise<void>;
+    settleBet(betId: BetId, winnerId: Principal): Promise<string>;
+    transform(input: TransformationInput): Promise<TransformationOutput>;
+    withdrawRequest(amount: bigint): Promise<string>;
 }

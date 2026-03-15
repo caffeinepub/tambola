@@ -20,9 +20,9 @@ export type PrizeType =
 export const PRIZE_LABELS: Record<PrizeType, string> = {
   earlyFive: "Early Five",
   corners: "Corners",
-  topLine: "Top Row",
-  middleLine: "Middle Row",
-  bottomLine: "Bottom Row",
+  topLine: "Top Line",
+  middleLine: "Middle Line",
+  bottomLine: "Bottom Line",
   fullHouse: "Full House",
 };
 
@@ -62,6 +62,20 @@ export type Player = {
   disqualifiedTickets: Set<string>;
 };
 
+export type AuthPlayer = {
+  mobile: string;
+  name: string;
+  uniqueId: string;
+  balance: number;
+  wallet: number;
+};
+
+export type GameHistoryEntry = {
+  date: string; // ISO string
+  prizesWon: string[]; // prize labels won
+  ticketCount: number;
+};
+
 export type GameStatus = "notStarted" | "inProgress" | "completed";
 
 const PRIZE_TYPES: PrizeType[] = [
@@ -73,21 +87,39 @@ const PRIZE_TYPES: PrizeType[] = [
   "fullHouse",
 ];
 
+export type AppMode = "home" | "caller" | "player" | "profile" | "admin";
+
 type GameContextType = {
   calledNumbers: number[];
   remainingNumbers: number[];
   gameStatus: GameStatus;
   prizes: Record<PrizeType, PrizeStatus>;
   players: Player[];
-  currentMode: "home" | "caller" | "player";
+  currentMode: AppMode;
   currentPlayerId: string | null;
   ticketPrice: number;
   setTicketPrice: (price: number) => void;
   totalPool: number;
+  authPlayer: AuthPlayer | null;
+  gameHistory: GameHistoryEntry[];
+  addGameHistoryEntry: (entry: GameHistoryEntry) => void;
+  sendOTP: (mobile: string) => string;
+  verifyOTP: (mobile: string, otp: string) => boolean;
+  isRegistered: (mobile: string) => boolean;
+  registerPlayer: (
+    mobile: string,
+    name: string,
+    password: string,
+  ) => AuthPlayer;
+  loginWithMobile: (
+    mobile: string,
+    password: string,
+  ) => AuthPlayer | "wrong_password";
+  logout: () => void;
   drawNumber: () => void;
   startGame: () => void;
   resetGame: () => void;
-  setMode: (mode: "home" | "caller" | "player") => void;
+  setMode: (mode: AppMode) => void;
   addPlayer: (
     name: string,
     ticketCount: number,
@@ -175,19 +207,84 @@ function savePlayerRecord(name: string, pin: string) {
   localStorage.setItem(`player-${name}-record`, JSON.stringify({ pin }));
 }
 
+function loadGameHistory(uniqueId: string): GameHistoryEntry[] {
+  const stored = localStorage.getItem(`tambola-history-${uniqueId}`);
+  if (!stored) return [];
+  try {
+    return JSON.parse(stored) as GameHistoryEntry[];
+  } catch {
+    return [];
+  }
+}
+
+function saveGameHistory(uniqueId: string, history: GameHistoryEntry[]) {
+  localStorage.setItem(`tambola-history-${uniqueId}`, JSON.stringify(history));
+}
+
+type MobileAccount = {
+  mobile: string;
+  name: string;
+  password: string;
+  uniqueId: string;
+  balance: number;
+  wallet: number;
+};
+
+function loadMobileAccount(mobile: string): MobileAccount | null {
+  const stored = localStorage.getItem(`tambola-account-${mobile}`);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+function saveMobileAccount(account: MobileAccount) {
+  localStorage.setItem(
+    `tambola-account-${account.mobile}`,
+    JSON.stringify(account),
+  );
+}
+
+function generateUniqueId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let id = "TB-";
+  for (let i = 0; i < 6; i++) {
+    id += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return id;
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [gameStatus, setGameStatus] = useState<GameStatus>("notStarted");
   const [prizes, setPrizes] =
     useState<Record<PrizeType, PrizeStatus>>(defaultPrizes);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [currentMode, setCurrentMode] = useState<"home" | "caller" | "player">(
-    "home",
-  );
+  const [currentMode, setCurrentMode] = useState<AppMode>("home");
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [ticketPrice, setTicketPrice] = useState(50);
+  const [authPlayer, setAuthPlayer] = useState<AuthPlayer | null>(() => {
+    try {
+      const stored = localStorage.getItem("tambola-session");
+      if (stored) return JSON.parse(stored) as AuthPlayer;
+    } catch {}
+    return null;
+  });
+  const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>(() => {
+    try {
+      const stored = localStorage.getItem("tambola-session");
+      if (stored) {
+        const ap = JSON.parse(stored) as AuthPlayer;
+        return loadGameHistory(ap.uniqueId);
+      }
+    } catch {}
+    return [];
+  });
   const poolRef = useRef<number[]>([]);
   const calledSetRef = useRef<Set<number>>(new Set());
+  const otpStore = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     calledSetRef.current = new Set(calledNumbers);
@@ -195,6 +292,87 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const totalPool =
     players.reduce((sum, p) => sum + p.tickets.length, 0) * ticketPrice;
+
+  const addGameHistoryEntry = useCallback(
+    (entry: GameHistoryEntry) => {
+      if (!authPlayer) return;
+      setGameHistory((prev) => {
+        const updated = [entry, ...prev].slice(0, 20);
+        saveGameHistory(authPlayer.uniqueId, updated);
+        return updated;
+      });
+    },
+    [authPlayer],
+  );
+
+  const sendOTP = useCallback((mobile: string): string => {
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    otpStore.current.set(mobile, otp);
+    return otp;
+  }, []);
+
+  const verifyOTP = useCallback((mobile: string, otp: string): boolean => {
+    const stored = otpStore.current.get(mobile);
+    return stored === otp;
+  }, []);
+
+  const isRegistered = useCallback((mobile: string): boolean => {
+    return loadMobileAccount(mobile) !== null;
+  }, []);
+
+  const registerPlayer = useCallback(
+    (mobile: string, name: string, password: string): AuthPlayer => {
+      const uniqueId = generateUniqueId();
+      const account: MobileAccount = {
+        mobile,
+        name,
+        password,
+        uniqueId,
+        balance: 1000,
+        wallet: 1000,
+      };
+      saveMobileAccount(account);
+      const ap: AuthPlayer = {
+        mobile,
+        name,
+        uniqueId,
+        balance: 1000,
+        wallet: 1000,
+      };
+      setAuthPlayer(ap);
+      setGameHistory([]);
+      localStorage.setItem("tambola-session", JSON.stringify(ap));
+      return ap;
+    },
+    [],
+  );
+
+  const loginWithMobile = useCallback(
+    (mobile: string, password: string): AuthPlayer | "wrong_password" => {
+      const account = loadMobileAccount(mobile);
+      if (!account) return "wrong_password";
+      if (account.password !== password) return "wrong_password";
+      const ap: AuthPlayer = {
+        mobile: account.mobile,
+        name: account.name,
+        uniqueId: account.uniqueId,
+        balance: account.balance,
+        wallet: account.wallet,
+      };
+      setAuthPlayer(ap);
+      setGameHistory(loadGameHistory(ap.uniqueId));
+      localStorage.setItem("tambola-session", JSON.stringify(ap));
+      return ap;
+    },
+    [],
+  );
+
+  const logout = useCallback(() => {
+    setAuthPlayer(null);
+    setGameHistory([]);
+    localStorage.removeItem("tambola-session");
+    setCurrentMode("home");
+  }, []);
 
   const startGame = useCallback(() => {
     const newPool = createNumberPool();
@@ -256,7 +434,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const wallet = loadWallet(name);
 
       if (existingId) {
-        // Update existing player's tickets
         setPlayers((prev) =>
           prev.map((p) =>
             p.id === existingId
@@ -268,7 +445,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               : p,
           ),
         );
-        // Return a synthetic player object for the caller
         const found = players.find((p) => p.id === existingId);
         if (found) {
           return {
@@ -321,7 +497,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setPlayers((prev) => [...prev, player]);
         return player;
       }
-      // New player — register
       savePlayerRecord(trimmed, pin);
       const balance = 1000;
       const wallet = 1000;
@@ -443,7 +618,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           [prizeType]: { winner: player.name, ticketId },
         }));
 
-        // Pool-based payout
         const payout = Math.floor(
           (PRIZE_PERCENTAGES[prizeType] / 100) * totalPool,
         );
@@ -453,7 +627,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             if (p.id !== playerId) return p;
             let newBalance = p.balance + payout;
             let newWallet = p.wallet;
-            // 2x bet payout
             const betAmount = p.bets[prizeType] ?? 0;
             if (betAmount > 0) {
               newWallet = p.wallet + betAmount * 2;
@@ -464,10 +637,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           }),
         );
 
+        // Record prize win in game history
+        if (authPlayer) {
+          const prizeLabel = PRIZE_LABELS[prizeType];
+          const currentPlayer = players.find((p) => p.id === playerId);
+          const ticketCount = currentPlayer?.tickets.length ?? 1;
+          addGameHistoryEntry({
+            date: new Date().toISOString(),
+            prizesWon: [prizeLabel],
+            ticketCount,
+          });
+        }
+
         return "won";
       }
 
-      // Bogey — disqualify ticket
       setPlayers((prev) =>
         prev.map((p) =>
           p.id === playerId
@@ -483,10 +667,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       );
       return "bogey";
     },
-    [gameStatus, prizes, players, checkQualification, totalPool],
+    [
+      gameStatus,
+      prizes,
+      players,
+      checkQualification,
+      totalPool,
+      authPlayer,
+      addGameHistoryEntry,
+    ],
   );
 
-  const setMode = useCallback((mode: "home" | "caller" | "player") => {
+  const setMode = useCallback((mode: AppMode) => {
     setCurrentMode(mode);
   }, []);
 
@@ -508,9 +700,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         ticketPrice,
         setTicketPrice,
         totalPool,
+        authPlayer,
+        gameHistory,
+        addGameHistoryEntry,
+        sendOTP,
+        verifyOTP,
+        isRegistered,
+        registerPlayer,
+        loginWithMobile,
+        logout,
         drawNumber,
-        startGame,
         resetGame,
+        startGame,
         setMode,
         addPlayer,
         loginPlayer,
@@ -531,5 +732,4 @@ export function useGame(): GameContextType {
   return ctx;
 }
 
-// Re-export for external usage
 export { PRIZE_TYPES };
