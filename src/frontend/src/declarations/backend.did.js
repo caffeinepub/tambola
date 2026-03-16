@@ -37,6 +37,14 @@ export const Bet = IDL.Record({
   'acceptorId' : IDL.Opt(IDL.Principal),
   'prizeType' : IDL.Text,
 });
+export const UserProfile = IDL.Record({ 'name' : IDL.Text });
+export const GameRoom = IDL.Record({
+  'hostName' : IDL.Text,
+  'calledNumbers' : IDL.Vec(IDL.Nat),
+  'isActive' : IDL.Bool,
+  'hostId' : IDL.Principal,
+  'prizeWinners' : IDL.Text,
+});
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
     'userPrincipal' : IDL.Opt(IDL.Text),
@@ -77,22 +85,37 @@ export const idlService = IDL.Service({
       [IDL.Text],
       [],
     ),
+  'createRoom' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
   'getActiveUsers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
   'getBalance' : IDL.Func([], [IDL.Nat], ['query']),
   'getBetById' : IDL.Func([BetId], [Bet], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getRoomState' : IDL.Func([IDL.Text], [GameRoom], ['query']),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getUserBets' : IDL.Func([IDL.Principal], [IDL.Vec(Bet)], ['query']),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+  'joinRoom' : IDL.Func([IDL.Text], [IDL.Text], []),
   'listOpenBets' : IDL.Func([IDL.Text], [IDL.Vec(Bet)], ['query']),
   'refundBet' : IDL.Func([BetId], [IDL.Text], []),
+  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
   'settleBet' : IDL.Func([BetId, IDL.Principal], [IDL.Text], []),
   'transform' : IDL.Func(
       [TransformationInput],
       [TransformationOutput],
       ['query'],
+    ),
+  'updateRoom' : IDL.Func(
+      [IDL.Text, IDL.Vec(IDL.Nat), IDL.Text, IDL.Bool],
+      [IDL.Text],
+      [],
     ),
   'withdrawRequest' : IDL.Func([IDL.Nat], [IDL.Text], []),
 });
@@ -128,6 +151,14 @@ export const idlFactory = ({ IDL }) => {
     'gameId' : IDL.Text,
     'acceptorId' : IDL.Opt(IDL.Principal),
     'prizeType' : IDL.Text,
+  });
+  const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  const GameRoom = IDL.Record({
+    'hostName' : IDL.Text,
+    'calledNumbers' : IDL.Vec(IDL.Nat),
+    'isActive' : IDL.Bool,
+    'hostId' : IDL.Principal,
+    'prizeWinners' : IDL.Text,
   });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
@@ -166,22 +197,37 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
+    'createRoom' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
     'getActiveUsers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getBetById' : IDL.Func([BetId], [Bet], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getRoomState' : IDL.Func([IDL.Text], [GameRoom], ['query']),
     'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
     'getUserBets' : IDL.Func([IDL.Principal], [IDL.Vec(Bet)], ['query']),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+    'joinRoom' : IDL.Func([IDL.Text], [IDL.Text], []),
     'listOpenBets' : IDL.Func([IDL.Text], [IDL.Vec(Bet)], ['query']),
     'refundBet' : IDL.Func([BetId], [IDL.Text], []),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
     'settleBet' : IDL.Func([BetId, IDL.Principal], [IDL.Text], []),
     'transform' : IDL.Func(
         [TransformationInput],
         [TransformationOutput],
         ['query'],
+      ),
+    'updateRoom' : IDL.Func(
+        [IDL.Text, IDL.Vec(IDL.Nat), IDL.Text, IDL.Bool],
+        [IDL.Text],
+        [],
       ),
     'withdrawRequest' : IDL.Func([IDL.Nat], [IDL.Text], []),
   });

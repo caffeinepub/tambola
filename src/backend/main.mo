@@ -13,6 +13,7 @@ import OutCall "http-outcalls/outcall";
 actor {
   // Type definitions
   type BetId = Text;
+  type RoomCode = Text;
 
   type Bet = {
     id : BetId;
@@ -31,8 +32,18 @@ actor {
     winnerId : ?Principal;
   };
 
+  public type GameRoom = {
+    hostId : Principal;
+    hostName : Text;
+    calledNumbers : [Nat];
+    prizeWinners : Text;
+    isActive : Bool;
+  };
+
   var nextBetId = 1;
+
   let bets = Map.empty<BetId, Bet>();
+  let gameRooms = Map.empty<RoomCode, GameRoom>();
   let activeUsers = Set.empty<Principal>();
   var configuration : ?Stripe.StripeConfiguration = null;
 
@@ -41,7 +52,6 @@ actor {
   };
 
   let userProfiles = Map.empty<Principal, UserProfile>();
-
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
@@ -76,9 +86,7 @@ actor {
     };
 
     switch (bets.get(betId)) {
-      case (null) {
-        Runtime.trap("Bet not found");
-      };
+      case (null) { Runtime.trap("Bet not found") };
       case (?bet) {
         if (bet.creatorId == caller) {
           Runtime.trap("Cannot accept your own bet");
@@ -95,9 +103,7 @@ actor {
             activeUsers.add(caller);
             "Bet accepted";
           };
-          case (_) {
-            Runtime.trap("Bet is not open to accept");
-          };
+          case (_) { Runtime.trap("Bet is not open to accept") };
         };
       };
     };
@@ -109,9 +115,7 @@ actor {
     };
 
     switch (bets.get(betId)) {
-      case (null) {
-        Runtime.trap("Bet not found");
-      };
+      case (null) { Runtime.trap("Bet not found") };
       case (?bet) {
         switch (bet.status) {
           case (#matched) {
@@ -134,9 +138,7 @@ actor {
             bets.add(betId, updatedBet);
             "Bet settled";
           };
-          case (_) {
-            Runtime.trap("Bet is not matched and cannot be settled");
-          };
+          case (_) { Runtime.trap("Bet is not matched and cannot be settled") };
         };
       };
     };
@@ -148,9 +150,7 @@ actor {
     };
 
     switch (bets.get(betId)) {
-      case (null) {
-        Runtime.trap("Bet not found");
-      };
+      case (null) { Runtime.trap("Bet not found") };
       case (?bet) {
         switch (bet.status) {
           case (#open) {
@@ -165,16 +165,12 @@ actor {
             bets.add(betId, updatedBet);
             "Matched bet refunded";
           };
-          case (#won) {
-            Runtime.trap("Cannot refund a completed bet");
-          };
+          case (#won) { Runtime.trap("Cannot refund a completed bet") };
           case (#lost) {
             bets.remove(betId);
             "Lost bet removed";
           };
-          case (#refunded) {
-            "Bet already refunded";
-          };
+          case (#refunded) { "Bet already refunded" };
         };
       };
     };
@@ -255,6 +251,28 @@ actor {
     activeUsers.toArray();
   };
 
+  // User profile management
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view profiles");
+    };
+    userProfiles.get(caller);
+  };
+
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    userProfiles.get(user);
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
+    };
+    userProfiles.add(caller, profile);
+  };
+
   // Stripe integration
   public query func isStripeConfigured() : async Bool {
     configuration != null;
@@ -287,5 +305,85 @@ actor {
 
   public query func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
+  };
+
+  // Multiplayer game room management
+  public shared ({ caller }) func createRoom(roomCode : Text, hostName : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create rooms");
+    };
+
+    // Validate room code length is 6 characters
+    let length = roomCode.chars().size();
+    if (length != 6) {
+      Runtime.trap("Room code must be 6 characters");
+    };
+
+    if (gameRooms.containsKey(roomCode)) {
+      Runtime.trap("Room code already exists. Please choose a different code.");
+    };
+
+    let newRoom : GameRoom = {
+      hostId = caller;
+      hostName;
+      calledNumbers = [];
+      prizeWinners = "";
+      isActive = true;
+    };
+
+    gameRooms.add(roomCode, newRoom);
+    "Room created successfully";
+  };
+
+  public shared ({ caller }) func joinRoom(roomCode : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can join rooms");
+    };
+
+    switch (gameRooms.get(roomCode)) {
+      case (null) { Runtime.trap("Room not found") };
+      case (?room) {
+        if (not room.isActive) {
+          Runtime.trap("This room is no longer active");
+        };
+        "(joinRoom) Room joined successfully";
+      };
+    };
+  };
+
+  public shared ({ caller }) func updateRoom(roomCode : Text, calledNumbers : [Nat], prizeWinners : Text, isActive : Bool) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update rooms");
+    };
+
+    switch (gameRooms.get(roomCode)) {
+      case (null) { Runtime.trap("Room not found") };
+      case (?room) {
+        // Only the room host or admins can update the room
+        if (caller != room.hostId and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the room host or admins can update the room");
+        };
+
+        let updatedRoom = {
+          room with
+          calledNumbers;
+          prizeWinners;
+          isActive;
+        };
+        gameRooms.add(roomCode, updatedRoom);
+        "Room updated successfully";
+      };
+    };
+  };
+
+  public query ({ caller }) func getRoomState(roomCode : Text) : async GameRoom {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view room state");
+    };
+
+    switch (gameRooms.get(roomCode)) {
+      case (null) { Runtime.trap("Room not found") };
+      case (?room) { room };
+    };
   };
 };

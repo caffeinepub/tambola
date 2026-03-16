@@ -25,6 +25,13 @@ export interface Bet {
   'prizeType' : string,
 }
 export type BetId = string;
+export interface GameRoom {
+  'hostName' : string,
+  'calledNumbers' : Array<bigint>,
+  'isActive' : boolean,
+  'hostId' : Principal,
+  'prizeWinners' : string,
+}
 export interface ShoppingItem {
   'productName' : string,
   'currency' : string,
@@ -49,6 +56,7 @@ export interface TransformationOutput {
   'body' : Uint8Array,
   'headers' : Array<http_header>,
 }
+export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
@@ -67,19 +75,26 @@ export interface _SERVICE {
     [Array<ShoppingItem>, string, string],
     string
   >,
+  'createRoom' : ActorMethod<[string, string], string>,
   'getActiveUsers' : ActorMethod<[], Array<Principal>>,
   'getBalance' : ActorMethod<[], bigint>,
   'getBetById' : ActorMethod<[BetId], Bet>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getRoomState' : ActorMethod<[string], GameRoom>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getUserBets' : ActorMethod<[Principal], Array<Bet>>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
+  'joinRoom' : ActorMethod<[string], string>,
   'listOpenBets' : ActorMethod<[string], Array<Bet>>,
   'refundBet' : ActorMethod<[BetId], string>,
+  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
   'settleBet' : ActorMethod<[BetId, Principal], string>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
+  'updateRoom' : ActorMethod<[string, Array<bigint>, string, boolean], string>,
   'withdrawRequest' : ActorMethod<[bigint], string>,
 }
 export declare const idlService: IDL.ServiceClass;

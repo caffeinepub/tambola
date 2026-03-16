@@ -1,6 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
 import { GameProvider, useGame } from "./context/GameContext";
 import { Admin } from "./pages/Admin";
 import { Home } from "./pages/Home";
@@ -34,21 +33,6 @@ function AppRoutes() {
 }
 
 export default function App() {
-  useEffect(() => {
-    const lockOrientation = async () => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const orientation = screen.orientation as any;
-        if (orientation && typeof orientation.lock === "function") {
-          await orientation.lock("landscape");
-        }
-      } catch {
-        // Browser may deny — CSS fallback handles visual rotation
-      }
-    };
-    lockOrientation();
-  }, []);
-
   return (
     <GameProvider>
       <AppRoutes />

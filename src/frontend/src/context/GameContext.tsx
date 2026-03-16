@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useActor } from "../hooks/useActor";
 import { type Ticket, generateTicket } from "../utils/ticketGenerator";
 
 export type PrizeType =
@@ -89,6 +90,12 @@ const PRIZE_TYPES: PrizeType[] = [
 
 export type AppMode = "home" | "caller" | "player" | "profile" | "admin";
 
+export type MultiplayerRoom = {
+  code: string;
+  role: "host" | "guest";
+  hostName: string;
+};
+
 type GameContextType = {
   calledNumbers: number[];
   remainingNumbers: number[];
@@ -138,6 +145,11 @@ type GameContextType = {
   ) => "won" | "bogey" | "already_claimed" | "game_not_started";
   checkQualification: (ticketId: string, prizeType: PrizeType) => boolean;
   setCurrentPlayer: (id: string | null) => void;
+  // Multiplayer
+  multiplayerRoom: MultiplayerRoom | null;
+  createMultiplayerRoom: () => Promise<string>;
+  joinMultiplayerRoom: (code: string) => Promise<"ok" | "not_found" | "error">;
+  leaveMultiplayerRoom: () => void;
 };
 
 const defaultPrizes: Record<PrizeType, PrizeStatus> = {
@@ -228,6 +240,7 @@ type MobileAccount = {
   uniqueId: string;
   balance: number;
   wallet: number;
+  lastLoginDate?: string;
 };
 
 function loadMobileAccount(mobile: string): MobileAccount | null {
@@ -256,7 +269,18 @@ function generateUniqueId(): string {
   return id;
 }
 
+function generateRoomCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
+  const { actor } = useActor();
+
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [gameStatus, setGameStatus] = useState<GameStatus>("notStarted");
   const [prizes, setPrizes] =
@@ -282,13 +306,69 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     return [];
   });
+  const [multiplayerRoom, setMultiplayerRoom] =
+    useState<MultiplayerRoom | null>(null);
+
   const poolRef = useRef<number[]>([]);
   const calledSetRef = useRef<Set<number>>(new Set());
   const otpStore = useRef<Map<string, string>>(new Map());
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     calledSetRef.current = new Set(calledNumbers);
   }, [calledNumbers]);
+
+  // Guest polling: sync called numbers + prizes from host via backend
+  useEffect(() => {
+    if (!multiplayerRoom || multiplayerRoom.role !== "guest") return;
+    const code = multiplayerRoom.code;
+
+    const poll = () => {
+      const doFetch = async () => {
+        try {
+          const room = await actor?.getRoomState(code);
+          if (!room) return;
+          const nums = room.calledNumbers.map((n) => Number(n));
+          setCalledNumbers(nums);
+          if (room.isActive && nums.length > 0) {
+            setGameStatus("inProgress");
+          } else if (!room.isActive && nums.length > 0) {
+            setGameStatus("completed");
+          }
+          if (room.prizeWinners) {
+            try {
+              const parsed = JSON.parse(room.prizeWinners) as Partial<
+                Record<PrizeType, { winner: string; ticketId: string }>
+              >;
+              setPrizes((prev) => {
+                const updated = { ...prev };
+                for (const pt of PRIZE_TYPES) {
+                  if (parsed[pt]) {
+                    updated[pt] = {
+                      winner: parsed[pt]!.winner,
+                      ticketId: parsed[pt]!.ticketId,
+                    };
+                  }
+                }
+                return updated;
+              });
+            } catch {}
+          }
+        } catch {}
+      };
+      doFetch();
+    };
+
+    pollIntervalRef.current = setInterval(poll, 3000);
+    poll(); // immediate first fetch
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [multiplayerRoom, actor]);
 
   const totalPool =
     players.reduce((sum, p) => sum + p.tickets.length, 0) * ticketPrice;
@@ -323,6 +403,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const registerPlayer = useCallback(
     (mobile: string, name: string, password: string): AuthPlayer => {
       const uniqueId = generateUniqueId();
+      const today = new Date().toISOString().slice(0, 10);
       const account: MobileAccount = {
         mobile,
         name,
@@ -330,6 +411,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         uniqueId,
         balance: 1000,
         wallet: 1000,
+        lastLoginDate: today,
       };
       saveMobileAccount(account);
       const ap: AuthPlayer = {
@@ -352,6 +434,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const account = loadMobileAccount(mobile);
       if (!account) return "wrong_password";
       if (account.password !== password) return "wrong_password";
+
+      // Daily login bonus
+      const today = new Date().toISOString().slice(0, 10);
+      if (account.lastLoginDate !== today) {
+        account.balance += 100;
+        account.wallet += 100;
+        account.lastLoginDate = today;
+        saveMobileAccount(account);
+      }
+
       const ap: AuthPlayer = {
         mobile: account.mobile,
         name: account.name,
@@ -372,6 +464,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setGameHistory([]);
     localStorage.removeItem("tambola-session");
     setCurrentMode("home");
+    setMultiplayerRoom(null);
   }, []);
 
   const startGame = useCallback(() => {
@@ -682,6 +775,53 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setCurrentMode(mode);
   }, []);
 
+  // Multiplayer: create room
+  const createMultiplayerRoom = useCallback(async (): Promise<string> => {
+    const code = generateRoomCode();
+    const hostName = authPlayer?.name ?? "Host";
+    try {
+      await actor?.createRoom(code, hostName);
+    } catch {
+      // Backend may fail; still set local room for fallback
+    }
+    const room: MultiplayerRoom = { code, role: "host", hostName };
+    setMultiplayerRoom(room);
+    return code;
+  }, [authPlayer, actor]);
+
+  // Multiplayer: join room
+  const joinMultiplayerRoom = useCallback(
+    async (code: string): Promise<"ok" | "not_found" | "error"> => {
+      try {
+        const result = await actor?.joinRoom(code.toUpperCase());
+        if (result === "not_found" || result === "error") {
+          return result as "not_found" | "error";
+        }
+        // Get room state to get host name
+        const roomState = await actor?.getRoomState(code.toUpperCase());
+        const room: MultiplayerRoom = {
+          code: code.toUpperCase(),
+          role: "guest",
+          hostName: roomState?.hostName ?? "Host",
+        };
+        setMultiplayerRoom(room);
+        return "ok";
+      } catch {
+        return "error";
+      }
+    },
+    [actor],
+  );
+
+  // Multiplayer: leave room
+  const leaveMultiplayerRoom = useCallback(() => {
+    setMultiplayerRoom(null);
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
   const remainingNumbers: number[] = [];
   for (let i = 1; i <= 90; i++) {
     if (!calledNumbers.includes(i)) remainingNumbers.push(i);
@@ -719,6 +859,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         claimPrize,
         checkQualification,
         setCurrentPlayer: setCurrentPlayerId,
+        multiplayerRoom,
+        createMultiplayerRoom,
+        joinMultiplayerRoom,
+        leaveMultiplayerRoom,
       }}
     >
       {children}

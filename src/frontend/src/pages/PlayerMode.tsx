@@ -24,65 +24,9 @@ import {
   useGame,
 } from "../context/GameContext";
 
-const GUEST_ID_KEY = "tambola-guest-id";
-const GUEST_NAME_KEY = "tambola-guest-name";
 const SESSION_KEY = "tambola-session";
-const GUEST_ADJECTIVES = [
-  "Lucky",
-  "Bold",
-  "Swift",
-  "Bright",
-  "Happy",
-  "Sunny",
-  "Brave",
-  "Cool",
-  "Wild",
-  "Sharp",
-  "Quick",
-  "Wise",
-  "Calm",
-  "Keen",
-  "Proud",
-];
-const GUEST_ANIMALS = [
-  "Tiger",
-  "Eagle",
-  "Panda",
-  "Lion",
-  "Fox",
-  "Wolf",
-  "Bear",
-  "Hawk",
-  "Deer",
-  "Horse",
-  "Shark",
-  "Whale",
-  "Cobra",
-  "Parrot",
-  "Cheetah",
-];
 
 const TICKET_PRICES = [10, 20, 50, 100, 500];
-
-function getOrCreateGuestIdentity(): { guestId: string; guestName: string } {
-  let guestId = localStorage.getItem(GUEST_ID_KEY);
-  let guestName = localStorage.getItem(GUEST_NAME_KEY);
-  if (!guestId) {
-    const suffix = Math.floor(1000 + Math.random() * 9000);
-    guestId = `guest-${suffix}-${Date.now().toString(36)}`;
-    localStorage.setItem(GUEST_ID_KEY, guestId);
-  }
-  if (!guestName) {
-    const adj =
-      GUEST_ADJECTIVES[Math.floor(Math.random() * GUEST_ADJECTIVES.length)];
-    const animal =
-      GUEST_ANIMALS[Math.floor(Math.random() * GUEST_ANIMALS.length)];
-    const num = Math.floor(10 + Math.random() * 90);
-    guestName = `${adj}${animal}${num}`;
-    localStorage.setItem(GUEST_NAME_KEY, guestName);
-  }
-  return { guestId: guestId!, guestName: guestName! };
-}
 
 let speechUnlocked = false;
 function unlockSpeech() {
@@ -145,191 +89,6 @@ const ALL_PRIZES: PrizeType[] = [
   "fullHouse",
 ];
 
-// ─── Login Screen ─────────────────────────────────────────────────────────────
-interface LoginScreenProps {
-  onLogin: (player: Player) => void;
-  onGuest: () => void;
-}
-
-function LoginScreen({ onLogin, onGuest }: LoginScreenProps) {
-  const { loginPlayer } = useGame();
-  const [name, setName] = useState("");
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!name.trim()) {
-      setError("Please enter your name.");
-      return;
-    }
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits.");
-      return;
-    }
-    setLoading(true);
-    const result = loginPlayer(name.trim(), pin);
-    setLoading(false);
-    if (result === "wrong_pin") {
-      setError("Wrong PIN. Try again or use a different name.");
-      return;
-    }
-    // Save session
-    localStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify({ name: name.trim(), pin }),
-    );
-    toast.success(`Welcome back, ${result.name}! 🎉`);
-    onLogin(result);
-  };
-
-  return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{
-        background:
-          "linear-gradient(135deg, oklch(0.12 0.08 280) 0%, oklch(0.16 0.1 160) 100%)",
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
-      >
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <img
-            src="/assets/generated/tambola-logo-new-transparent.dim_300x120.png"
-            alt="Tambola Logo"
-            className="h-16 md:h-20 object-contain drop-shadow-[0_0_24px_oklch(0.8_0.22_80/0.8)]"
-          />
-        </div>
-
-        {/* Card */}
-        <div
-          className="rounded-2xl border p-8"
-          style={{
-            background: "oklch(0.17 0.07 200 / 0.95)",
-            borderColor: "oklch(0.35 0.15 160 / 0.4)",
-            boxShadow: "0 20px 60px oklch(0.1 0.05 160 / 0.6)",
-          }}
-        >
-          <h1
-            className="font-display text-2xl font-bold mb-1 text-center"
-            style={{ color: "oklch(0.9 0.12 160)" }}
-          >
-            Join the Game
-          </h1>
-          <p className="text-center text-sm text-muted-foreground font-body mb-6">
-            Enter name & PIN to play · New players get 1000 🪙
-          </p>
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-            data-ocid="login.modal"
-          >
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="login-name"
-                className="text-sm font-body"
-                style={{ color: "oklch(0.78 0.12 160)" }}
-              >
-                Your Name
-              </Label>
-              <Input
-                id="login-name"
-                data-ocid="login.input"
-                placeholder="e.g. Priya, Raj, Sam"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="font-body"
-                style={{
-                  background: "oklch(0.22 0.06 160)",
-                  borderColor: "oklch(0.35 0.12 160 / 0.5)",
-                  color: "oklch(0.92 0.08 160)",
-                }}
-                maxLength={20}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="login-pin"
-                className="text-sm font-body"
-                style={{ color: "oklch(0.78 0.12 160)" }}
-              >
-                PIN (4+ digits)
-              </Label>
-              <Input
-                id="login-pin"
-                data-ocid="login.input"
-                type="password"
-                inputMode="numeric"
-                placeholder="e.g. 1234"
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 8))
-                }
-                className="font-body tracking-widest"
-                style={{
-                  background: "oklch(0.22 0.06 160)",
-                  borderColor: "oklch(0.35 0.12 160 / 0.5)",
-                  color: "oklch(0.92 0.08 160)",
-                }}
-              />
-            </div>
-
-            {error && (
-              <p
-                className="text-sm font-body text-center py-2 px-3 rounded-lg"
-                data-ocid="login.error_state"
-                style={{
-                  background: "oklch(0.28 0.15 25 / 0.3)",
-                  color: "oklch(0.75 0.18 25)",
-                }}
-              >
-                {error}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              data-ocid="login.submit_button"
-              className="w-full font-bold text-base py-5"
-              disabled={loading}
-              style={{
-                background:
-                  "linear-gradient(135deg, oklch(0.52 0.22 160), oklch(0.42 0.2 170))",
-                color: "white",
-                border: "none",
-              }}
-            >
-              {loading ? "Entering..." : "▶ Play Now"}
-            </Button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              data-ocid="login.secondary_button"
-              onClick={onGuest}
-              className="text-sm font-body underline underline-offset-2 transition-colors"
-              style={{ color: "oklch(0.6 0.1 160)" }}
-            >
-              Play as Guest (no PIN)
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ─── Betting Panel ────────────────────────────────────────────────────────────
 // ─── Main PlayerMode ──────────────────────────────────────────────────────────
 export function PlayerMode() {
   const {
@@ -347,15 +106,58 @@ export function PlayerMode() {
     ticketPrice,
     setTicketPrice,
     authPlayer,
+    multiplayerRoom,
+    createMultiplayerRoom,
   } = useGame();
   const [displayName, setDisplayName] = useState("");
   const [ticketCount, setTicketCount] = useState("1");
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showNumberBoard, setShowNumberBoard] = useState(false);
   const [autoCall, setAutoCall] = useState(false);
   const autoCallRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialized = useRef(false);
+  const [isPortrait, setIsPortrait] = useState(
+    () => window.innerWidth < window.innerHeight,
+  );
+  const [copiedRoomCode, setCopiedRoomCode] = useState(false);
+  const [hostingRoom, setHostingRoom] = useState(false);
+
+  // Lock landscape orientation for game screen
+  useEffect(() => {
+    const tryLock = async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ori = screen.orientation as any;
+        if (ori && typeof ori.lock === "function") {
+          await ori.lock("landscape");
+        }
+      } catch {
+        // Browser may deny — ok
+      }
+    };
+    tryLock();
+    return () => {
+      try {
+        screen.orientation.unlock();
+      } catch {
+        // ok
+      }
+    };
+  }, []);
+
+  // Portrait detection + overlay
+  useEffect(() => {
+    const check = () => {
+      setIsPortrait(window.innerWidth < window.innerHeight);
+    };
+    check();
+    window.addEventListener("resize", check);
+    window.addEventListener("orientationchange", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", check);
+    };
+  }, []);
 
   // Check saved session on mount
   useEffect(() => {
@@ -370,14 +172,23 @@ export function PlayerMode() {
           if (result !== "wrong_pin") {
             setDisplayName(result.name);
             setCurrentPlayer(result);
-            setIsLoggedIn(true);
             return;
           }
         }
       }
     } catch {}
-    // No valid session — stay on login screen
-  }, [loginPlayer]);
+    // No valid session — auto-initialize from authPlayer
+    if (authPlayer) {
+      const result = loginPlayer(
+        authPlayer.name,
+        `auto-${authPlayer.uniqueId}`,
+      );
+      if (result !== "wrong_pin") {
+        setDisplayName(result.name);
+        setCurrentPlayer(result);
+      }
+    }
+  }, [loginPlayer, authPlayer]);
 
   useEffect(() => {
     if (autoCall && gameStatus === "inProgress") {
@@ -422,23 +233,6 @@ export function PlayerMode() {
     ? (players.find((p) => p.id === currentPlayer.id) ?? currentPlayer)
     : null;
 
-  const handleLogin = useCallback((player: Player) => {
-    setCurrentPlayer(player);
-    setDisplayName(player.name);
-    setIsLoggedIn(true);
-  }, []);
-
-  const handleGuest = useCallback(() => {
-    const { guestName } = getOrCreateGuestIdentity();
-    const nameToUse = authPlayer ? authPlayer.name : guestName;
-    const result = addPlayer(nameToUse, 1);
-    if (result !== "insufficient_balance") {
-      setDisplayName(nameToUse);
-      setCurrentPlayer(result);
-      setIsLoggedIn(true);
-    }
-  }, [addPlayer, authPlayer]);
-
   const handleAddTickets = useCallback(() => {
     if (!currentPlayer) return;
     const desired = Number.parseInt(ticketCount);
@@ -482,25 +276,86 @@ export function PlayerMode() {
   const numTickets = Number.parseInt(ticketCount) || 1;
   const totalCost = numTickets * ticketPrice;
 
-  const handleStartGame = () => {
+  const isGuest = multiplayerRoom?.role === "guest";
+
+  const handleStartGame = async () => {
     unlockSpeech();
+    // If no multiplayer room and user is host intent, create room first
+    if (!multiplayerRoom && !isGuest) {
+      // Just start — solo or auto-host
+    }
     startGame();
   };
+
+  const handleCreateHostRoom = async () => {
+    setHostingRoom(true);
+    try {
+      await createMultiplayerRoom();
+      toast.success("Room created! Share the code with friends.");
+    } catch {
+      toast.error("Failed to create room.");
+    } finally {
+      setHostingRoom(false);
+    }
+  };
+
   const handleAutoCallToggle = () => {
     unlockSpeech();
     setAutoCall((v) => !v);
   };
 
-  // ── Show Login Screen ──
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={handleLogin} onGuest={handleGuest} />;
-  }
+  const handleCopyRoomCode = () => {
+    if (multiplayerRoom?.code) {
+      navigator.clipboard.writeText(multiplayerRoom.code).catch(() => {});
+      setCopiedRoomCode(true);
+      setTimeout(() => setCopiedRoomCode(false), 2000);
+    }
+  };
 
   return (
     <div
       className="min-h-screen flex flex-col"
       style={{ background: "oklch(0.12 0.05 160)" }}
     >
+      {/* Rotate overlay */}
+      <AnimatePresence>
+        {isPortrait && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
+            style={{
+              background: "oklch(0.1 0.08 290 / 0.97)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <motion.div
+              animate={{ rotate: [0, 90, 0] }}
+              transition={{
+                repeat: Number.POSITIVE_INFINITY,
+                duration: 2,
+                ease: "easeInOut",
+              }}
+              className="text-6xl"
+            >
+              📱
+            </motion.div>
+            <div className="text-center px-8">
+              <p
+                className="font-display text-2xl font-bold mb-2"
+                style={{ color: "oklch(0.9 0.14 50)" }}
+              >
+                Rotate Your Device
+              </p>
+              <p className="font-body text-sm text-muted-foreground">
+                Please turn your phone to landscape mode to play Tambola.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header
         className="sticky top-0 z-20 backdrop-blur border-b"
@@ -520,10 +375,44 @@ export function PlayerMode() {
           </button>
           <div className="h-4 w-px bg-border" />
           <img
-            src="/assets/generated/tambola-logo-new-transparent.dim_300x120.png"
+            src="/assets/generated/tambola-logo-colorful-transparent.dim_400x180.png"
             alt="Tambola"
-            className="h-8 object-contain"
+            className="h-8 object-contain drop-shadow-[0_0_12px_rgba(255,140,0,0.5)]"
           />
+          {/* Multiplayer room badge */}
+          {multiplayerRoom && (
+            <div
+              className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold"
+              style={{
+                background:
+                  multiplayerRoom.role === "host"
+                    ? "oklch(0.3 0.14 50 / 0.4)"
+                    : "oklch(0.3 0.14 170 / 0.4)",
+                color:
+                  multiplayerRoom.role === "host"
+                    ? "oklch(0.85 0.2 50)"
+                    : "oklch(0.85 0.2 170)",
+                border: `1px solid ${
+                  multiplayerRoom.role === "host"
+                    ? "oklch(0.5 0.2 50 / 0.4)"
+                    : "oklch(0.5 0.2 170 / 0.4)"
+                }`,
+              }}
+            >
+              {multiplayerRoom.role === "host" ? "🎙️" : "🎮"} Room:{" "}
+              {multiplayerRoom.code}
+              {multiplayerRoom.role === "host" && (
+                <button
+                  type="button"
+                  onClick={handleCopyRoomCode}
+                  className="ml-1 opacity-70 hover:opacity-100"
+                  data-ocid="player.room.button"
+                >
+                  {copiedRoomCode ? "✓" : "📋"}
+                </button>
+              )}
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {livePlayer && (
               <Badge
@@ -619,12 +508,14 @@ export function PlayerMode() {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 1.3, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 350, damping: 22 }}
-                    className="font-display font-black text-8xl w-36 h-36 rounded-2xl flex items-center justify-center shadow-lg"
+                    className="font-display font-black text-8xl w-36 h-36 rounded-full flex items-center justify-center shadow-lg"
                     style={{
                       background:
-                        "linear-gradient(135deg, oklch(0.5 0.22 160), oklch(0.38 0.18 175))",
+                        "conic-gradient(from 0deg, oklch(0.65 0.28 50), oklch(0.6 0.28 130), oklch(0.55 0.28 220), oklch(0.6 0.28 290), oklch(0.65 0.28 350), oklch(0.65 0.28 50))",
                       color: "white",
-                      boxShadow: "0 0 50px oklch(0.5 0.22 160 / 0.6)",
+                      boxShadow:
+                        "0 0 50px oklch(0.6 0.28 50 / 0.7), 0 0 80px oklch(0.55 0.26 290 / 0.4)",
+                      textShadow: "0 2px 8px rgba(0,0,0,0.6)",
                     }}
                   >
                     {lastCalled}
@@ -660,137 +551,204 @@ export function PlayerMode() {
               <div className="flex flex-col gap-2">
                 {gameStatus === "notStarted" && (
                   <>
-                    {/* Ticket Price Selector */}
-                    <div
-                      className="rounded-lg p-3 mb-1"
-                      style={{ background: "oklch(0.2 0.07 160 / 0.6)" }}
-                    >
-                      <p
-                        className="text-xs font-body mb-2"
-                        style={{ color: "oklch(0.72 0.1 160)" }}
+                    {/* Guest note */}
+                    {isGuest && (
+                      <div
+                        className="rounded-lg p-3 mb-1"
+                        style={{
+                          background: "oklch(0.22 0.1 170 / 0.3)",
+                          border: "1px solid oklch(0.4 0.16 170 / 0.4)",
+                        }}
                       >
-                        🎫 Ticket Price (coins)
-                      </p>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {TICKET_PRICES.map((price) => (
-                          <button
-                            key={price}
-                            type="button"
-                            data-ocid="player.tickets.select"
-                            onClick={() => setTicketPrice(price)}
-                            className="flex-1 min-w-[40px] text-xs font-bold py-1.5 px-2 rounded-lg transition-all"
-                            style={
-                              ticketPrice === price
-                                ? {
-                                    background:
-                                      "linear-gradient(135deg, oklch(0.55 0.22 80), oklch(0.44 0.2 90))",
-                                    color: "white",
-                                    boxShadow:
-                                      "0 0 12px oklch(0.55 0.22 80 / 0.5)",
-                                  }
-                                : {
-                                    background: "oklch(0.24 0.07 160 / 0.6)",
-                                    color: "oklch(0.65 0.1 160)",
-                                    border:
-                                      "1px solid oklch(0.32 0.1 160 / 0.4)",
-                                  }
-                            }
-                          >
-                            🪙{price}
-                          </button>
-                        ))}
-                      </div>
-                      <p
-                        className="text-xs font-mono mt-2"
-                        style={{ color: "oklch(0.75 0.14 80)" }}
-                      >
-                        Cost: {numTickets} ticket{numTickets !== 1 ? "s" : ""} ×{" "}
-                        {ticketPrice} = 🪙{totalCost}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className="text-xs font-body"
-                        style={{ color: "oklch(0.75 0.14 160)" }}
-                      >
-                        🎟️ Tickets:
-                      </span>
-                      <Select
-                        value={ticketCount}
-                        onValueChange={setTicketCount}
-                      >
-                        <SelectTrigger
-                          data-ocid="player.tickets.select"
-                          className="font-body flex-1 h-8 text-xs"
+                        <p
+                          className="text-xs font-body"
+                          style={{ color: "oklch(0.8 0.14 170)" }}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6].map((n) => (
-                            <SelectItem
-                              key={n}
-                              value={String(n)}
-                              className="font-body text-xs"
-                            >
-                              {n} ticket{n !== 1 ? "s" : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleAddTickets}
-                        data-ocid="player.add_tickets.button"
-                        className="font-body text-xs h-8 px-2"
-                      >
-                        Set
-                      </Button>
-                    </div>
+                          🎮 Guest — waiting for host (
+                          {multiplayerRoom?.hostName}) to start
+                        </p>
+                      </div>
+                    )}
 
-                    <Button
-                      onClick={handleStartGame}
-                      data-ocid="player.start.button"
-                      className="w-full text-white border-0 font-bold"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, oklch(0.5 0.2 160), oklch(0.4 0.18 170))",
-                      }}
-                    >
-                      ▶ Start Game
-                    </Button>
+                    {/* Create Host Room button (only if no room and not guest) */}
+                    {!multiplayerRoom && !isGuest && (
+                      <button
+                        type="button"
+                        onClick={handleCreateHostRoom}
+                        disabled={hostingRoom}
+                        data-ocid="player.multiplayer.button"
+                        className="text-xs py-1.5 px-3 rounded-lg font-body mb-1 disabled:opacity-50 transition-all"
+                        style={{
+                          background: "oklch(0.22 0.1 50 / 0.35)",
+                          color: "oklch(0.78 0.14 50)",
+                          border: "1px solid oklch(0.38 0.14 50 / 0.4)",
+                        }}
+                      >
+                        {hostingRoom
+                          ? "Creating room..."
+                          : "🌐 Host Multiplayer"}
+                      </button>
+                    )}
+
+                    {/* Ticket Price Selector */}
+                    {!isGuest && (
+                      <div
+                        className="rounded-lg p-3 mb-1"
+                        style={{ background: "oklch(0.2 0.07 160 / 0.6)" }}
+                      >
+                        <p
+                          className="text-xs font-body mb-2"
+                          style={{ color: "oklch(0.72 0.1 160)" }}
+                        >
+                          🎫 Ticket Price (coins)
+                        </p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {TICKET_PRICES.map((price) => (
+                            <button
+                              key={price}
+                              type="button"
+                              data-ocid="player.tickets.select"
+                              onClick={() => setTicketPrice(price)}
+                              className="flex-1 min-w-[40px] text-xs font-bold py-1.5 px-2 rounded-lg transition-all"
+                              style={
+                                ticketPrice === price
+                                  ? {
+                                      background:
+                                        "linear-gradient(135deg, oklch(0.55 0.22 80), oklch(0.44 0.2 90))",
+                                      color: "white",
+                                      boxShadow:
+                                        "0 0 12px oklch(0.55 0.22 80 / 0.5)",
+                                    }
+                                  : {
+                                      background: "oklch(0.24 0.07 160 / 0.6)",
+                                      color: "oklch(0.65 0.1 160)",
+                                      border:
+                                        "1px solid oklch(0.32 0.1 160 / 0.4)",
+                                    }
+                              }
+                            >
+                              🪙{price}
+                            </button>
+                          ))}
+                        </div>
+                        <p
+                          className="text-xs font-mono mt-2"
+                          style={{ color: "oklch(0.75 0.14 80)" }}
+                        >
+                          Cost: {numTickets} ticket{numTickets !== 1 ? "s" : ""}{" "}
+                          × {ticketPrice} = 🪙{totalCost}
+                        </p>
+                      </div>
+                    )}
+
+                    {!isGuest && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="text-xs font-body"
+                          style={{ color: "oklch(0.75 0.14 160)" }}
+                        >
+                          🎟️ Tickets:
+                        </span>
+                        <Select
+                          value={ticketCount}
+                          onValueChange={setTicketCount}
+                        >
+                          <SelectTrigger
+                            data-ocid="player.tickets.select"
+                            className="font-body flex-1 h-8 text-xs"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6].map((n) => (
+                              <SelectItem
+                                key={n}
+                                value={String(n)}
+                                className="font-body text-xs"
+                              >
+                                {n} ticket{n !== 1 ? "s" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleAddTickets}
+                          data-ocid="player.add_tickets.button"
+                          className="font-body text-xs h-8 px-2"
+                        >
+                          Set
+                        </Button>
+                      </div>
+                    )}
+
+                    {!isGuest && (
+                      <Button
+                        onClick={handleStartGame}
+                        data-ocid="player.start.button"
+                        className="w-full text-white border-0 font-bold"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, oklch(0.5 0.2 160), oklch(0.4 0.18 170))",
+                        }}
+                      >
+                        ▶ Start Game
+                      </Button>
+                    )}
                   </>
                 )}
                 {gameStatus === "inProgress" && (
                   <>
-                    <Button
-                      variant={autoCall ? "destructive" : "default"}
-                      onClick={handleAutoCallToggle}
-                      data-ocid="player.autocall.toggle"
-                      className="w-full font-bold text-sm"
-                      style={
-                        autoCall
-                          ? {}
-                          : {
-                              background:
-                                "linear-gradient(135deg, oklch(0.5 0.2 160), oklch(0.4 0.18 170))",
-                              color: "white",
-                              border: "none",
-                            }
-                      }
-                    >
-                      {autoCall ? "⏹ Stop Auto Caller" : "🔊 Auto Caller (3s)"}
-                    </Button>
-                    <Button
-                      onClick={resetGame}
-                      variant="destructive"
-                      size="sm"
-                      data-ocid="player.reset.button"
-                      className="w-full"
-                    >
-                      ↺ Reset Game
-                    </Button>
+                    {!isGuest && (
+                      <Button
+                        variant={autoCall ? "destructive" : "default"}
+                        onClick={handleAutoCallToggle}
+                        data-ocid="player.autocall.toggle"
+                        className="w-full font-bold text-sm"
+                        style={
+                          autoCall
+                            ? {}
+                            : {
+                                background:
+                                  "linear-gradient(135deg, oklch(0.5 0.2 160), oklch(0.4 0.18 170))",
+                                color: "white",
+                                border: "none",
+                              }
+                        }
+                      >
+                        {autoCall
+                          ? "⏹ Stop Auto Caller"
+                          : "🔊 Auto Caller (3s)"}
+                      </Button>
+                    )}
+                    {isGuest && (
+                      <div
+                        className="rounded-lg p-3"
+                        style={{
+                          background: "oklch(0.22 0.1 170 / 0.3)",
+                          border: "1px solid oklch(0.4 0.16 170 / 0.4)",
+                        }}
+                      >
+                        <p
+                          className="text-xs font-body text-center"
+                          style={{ color: "oklch(0.8 0.14 170)" }}
+                        >
+                          🎮 Syncing with host...
+                        </p>
+                      </div>
+                    )}
+                    {!isGuest && (
+                      <Button
+                        onClick={resetGame}
+                        variant="destructive"
+                        size="sm"
+                        data-ocid="player.reset.button"
+                        className="w-full"
+                      >
+                        ↺ Reset Game
+                      </Button>
+                    )}
                   </>
                 )}
                 {gameStatus === "completed" && (
@@ -798,15 +756,17 @@ export function PlayerMode() {
                     <p className="text-sm font-body text-center text-muted-foreground">
                       🏁 All 90 numbers drawn!
                     </p>
-                    <Button
-                      onClick={resetGame}
-                      variant="destructive"
-                      size="sm"
-                      data-ocid="player.reset.button"
-                      className="w-full"
-                    >
-                      ↺ New Game
-                    </Button>
+                    {!isGuest && (
+                      <Button
+                        onClick={resetGame}
+                        variant="destructive"
+                        size="sm"
+                        data-ocid="player.reset.button"
+                        className="w-full"
+                      >
+                        ↺ New Game
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -912,7 +872,9 @@ export function PlayerMode() {
               >
                 <div className="text-4xl mb-2">⏳</div>
                 <p className="font-body text-muted-foreground">
-                  Set tickets above and press Start Game!
+                  {isGuest
+                    ? "Waiting for host to start the game..."
+                    : "Set tickets above and press Start Game!"}
                 </p>
               </div>
             )}
